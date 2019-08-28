@@ -4,21 +4,43 @@ import (
 	"strings"
 	"strconv"
 	"errors"
+	"runtime"
+
+	utils "../utils"
 )
 
 type CpuStat struct {
-	CPU       string
-	User      float64
-	System    float64
-	Idle      float64
-	Nice      float64
-	Iowait    float64
-	Irq       float64
-	Softirq   float64
-	Steal     float64
-	Guest     float64
-	GuestNice float64
-	Stolen    float64
+	CPU       string   `json:"cpu"`
+	User      float64  `json:"user"`
+	System    float64  `json:"system"`
+	Idle      float64  `json:"idle"`
+	Nice      float64  `json:"nice"`
+	Iowait    float64  `json:"iowait"`
+	Irq       float64  `json:"irq"`
+	Softirq   float64  `json:"softirq"`
+	Steal     float64  `json:"steal"`
+	Guest     float64  `json:"guest"`
+	GuestNice float64  `json:"guestnice"`
+	Stolen    float64  `json:"stolen"`
+}
+
+func CpuTicker() ([]CpuStat, error) {
+	cpusStat := []CpuStat{}
+	filename := "/proc/stat"
+	lines, err := utils.ReadLines(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < runtime.NumCPU() + 1; i++ {
+		cpuStat := CpuStat{}
+		err := cpuStat.GetCpuTimes(lines[i])
+		if err != nil {
+			return nil, err
+		}
+		cpusStat = append(cpusStat, cpuStat)
+	}
+	return cpusStat, nil
 }
 
 func (cpuStat *CpuStat) GetCpuTimes(line string) error {
