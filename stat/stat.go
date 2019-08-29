@@ -4,12 +4,15 @@ import (
 	"time"
 	"runtime"
 
+	utils "../utils"
 	cpu "../cpu"
+	memory "../memory"
 )
 
 type SysStat struct {
-	CpuArray []cpu.CpuStat `json:"cpulist"`
-
+	DateTime utils.FormatTime     `json:"datetime"`
+	CpuArray []cpu.CpuStat        `json:"cpuList"`
+	memory.MemoryStat
 }
 
 func (sysStat *SysStat) CpuUtilization(t int) {
@@ -63,4 +66,8 @@ func (sysStat *SysStat) CpuUtilization(t int) {
 
 		sysStat.CpuArray = append(sysStat.CpuArray, cpuStat)
 	}
+}
+
+func (sysStat *SysStat) MemoryInfo() {
+	sysStat.MemoryTicker()	
 }

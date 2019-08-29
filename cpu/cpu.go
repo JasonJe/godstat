@@ -20,7 +20,7 @@ type CpuStat struct {
 	Softirq   float64  `json:"softirq"`
 	Steal     float64  `json:"steal"`
 	Guest     float64  `json:"guest"`
-	GuestNice float64  `json:"guestnice"`
+	GuestNice float64  `json:"guestNice"`
 	Stolen    float64  `json:"stolen"`
 }
 
@@ -34,7 +34,7 @@ func CpuTicker() ([]CpuStat, error) {
 
 	for i := 0; i < runtime.NumCPU() + 1; i++ {
 		cpuStat := CpuStat{}
-		err := cpuStat.GetCpuTimes(lines[i])
+		err := cpuStat.getCpuTimes(lines[i])
 		if err != nil {
 			return nil, err
 		}
@@ -43,7 +43,7 @@ func CpuTicker() ([]CpuStat, error) {
 	return cpusStat, nil
 }
 
-func (cpuStat *CpuStat) GetCpuTimes(line string) error {
+func (cpuStat *CpuStat) getCpuTimes(line string) error {
 	fields := strings.Fields(line)
 
 	if strings.HasPrefix(fields[0], "cpu") == false {

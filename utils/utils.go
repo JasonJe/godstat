@@ -1,10 +1,19 @@
 package utils
 
 import (
+	"time"
+	"fmt"
 	"os"
 	"bufio"
 	"strings"
 )
+
+type FormatTime time.Time
+
+func (this FormatTime) MarshalJSON() ([]byte, error) {
+	var stamp = fmt.Sprintf("\"%s\"", time.Time(this).Format("2006-01-02 15:04:05"))
+	return []byte(stamp), nil
+}
 
 func ReadLines(filename string) ([]string, error) {
 	return readLinesOffsetN(filename, 0, -1)
