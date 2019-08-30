@@ -3,24 +3,32 @@ package main
 import (
 	"fmt"
 	"time"
-	"encoding/json"
+	// "encoding/json"
 
 	stat "./stat"
-	utils "./utils"
+	// utils "./utils"
 )
 
 func main() {
-	sysStat := new(stat.SysStat)
+	// sysStat := new(stat.SysStat)
 
-	sysStat.CpuUtilization(200)
-	sysStat.MemoryInfo()
+	// sysStat.CpuUtilization(200)
+	// sysStat.MemoryInfo()
+	// sysStat.Paging(200)
 	
-	sysStat.DateTime = utils.FormatTime(time.Now())
+	// sysStat.DateTime = utils.FormatTime(time.Now())
 
-	sysStatJson, err := json.MarshalIndent(sysStat, "", "\t")
-	if err != nil {
-		fmt.Println(nil)
+	// sysStatJson, err := json.MarshalIndent(sysStat, "", "\t")
+	// if err != nil {
+	// 	fmt.Println(nil)
+	// }
+
+	// fmt.Println(string(sysStatJson))
+
+	for {
+		sysStat := new(stat.SysStat)
+		sysStat.Paging(200)
+		fmt.Println(sysStat.PageIn, sysStat.PageOut)
+		time.Sleep(time.Second)
 	}
-
-	fmt.Println(string(sysStatJson))
 }

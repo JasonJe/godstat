@@ -1,18 +1,22 @@
 package stat
 
 import (
+	"os"
+	"fmt"
 	"time"
 	"runtime"
 
 	utils "../utils"
 	cpu "../cpu"
 	memory "../memory"
+	page "../page"
 )
 
 type SysStat struct {
 	DateTime utils.FormatTime     `json:"datetime"`
 	CpuArray []cpu.CpuStat        `json:"cpuList"`
 	memory.MemoryStat
+	page.PageStat
 }
 
 func (sysStat *SysStat) CpuUtilization(t int) {
@@ -70,4 +74,16 @@ func (sysStat *SysStat) CpuUtilization(t int) {
 
 func (sysStat *SysStat) MemoryInfo() {
 	sysStat.MemoryTicker()	
+}
+
+func (sysStat *SysStat) Paging(t int) {
+	ticker := time.NewTicker(time.Millisecond * time.Duration(t))
+	pageStat := page.PageStat{}
+	pageStat.PageTicker()
+	<- ticker.C
+	pageStat2 := page.PageStat{}
+	pageStat2.PageTicker()
+
+	sysStat.PageIn = (pageStat2.PageIn - pageStat.PageIn) * int64(os.Getpagesize()) * 1
+	sysStat.PageOut = (pageStat2.PageOut - pageStat.PageOut) * int64(os.Getpagesize()) * 1
 }
