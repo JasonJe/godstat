@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	_"fmt"
+	_"time"
 	// "encoding/json"
 
 	stat "./stat"
@@ -25,10 +25,16 @@ func main() {
 
 	// fmt.Println(string(sysStatJson))
 
-	for {
-		sysStat := new(stat.SysStat)
-		sysStat.Paging(200)
-		fmt.Println(sysStat.PageIn, sysStat.PageOut)
-		time.Sleep(time.Second)
-	}
+//	for {
+//		sysStat := new(stat.SysStat)
+//		// sysStat.Paging(200)
+//		// fmt.Println(sysStat.PageIn, sysStat.PageOut)
+//		sysStat.Disk(200)
+//        // fmt.Println(sysStat.DiskList)
+//		time.Sleep(time.Second)
+//	}
+    
+    sysStat := new(stat.SysStat)
+    sysStat.Run(1000)
+
 }
