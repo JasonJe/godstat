@@ -17,7 +17,6 @@ type DiskStat struct {
 
 func DiskTicker(totalDiskStat *DiskStat) (map[string]DiskStat, error) {
     filename := "/proc/diskstats"
-    // filename := "./diskstats"
     lines, err := utils.ReadLines(filename)
     if err != nil {
         return nil, err 

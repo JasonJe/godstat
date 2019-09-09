@@ -1384,7 +1384,6 @@ class dstat_net(dstat):
                 self.set2[name] = ( int(l[1]), int(l[9]) )
             if not self.totalfilter.match(name):
                 self.set2['total'] = ( self.set2['total'][0] + int(l[1]), self.set2['total'][1] + int(l[9]))
-
         if update:
             for name in self.set2:
                 self.val[name] = list(map(lambda x, y: (y - x) * 1.0 / elapsed, self.set1[name], self.set2[name]))

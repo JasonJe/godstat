@@ -7,6 +7,7 @@ import (
 	"io"
 	"bufio"
 	"strings"
+	"errors"
 	"reflect"
 	"path/filepath"
 )
@@ -47,7 +48,6 @@ func readLinesOffsetN(filename string, offset, limit int) ([]string, error) {
 	}
 	
     r.Reset(r) // *** 关键，这里的 f 是 *os.File，Reset 将 r 的底层 Reader 重新指定为 r，同时丢弃缓存中的所有数据，复位
-    // f.close()
 	return ret, nil
 }
 
@@ -74,7 +74,7 @@ func GetDiskDev() ([]string, error) {
         if (reflect.DeepEqual(fields[3:], unUsingDstat)) {
             continue
         }
-        if stringsContains(baseNames, fields[2]) {
+        if StringsContains(baseNames, fields[2]) {
             continue 
         }
         baseNames = append(baseNames, fields[2])
@@ -82,11 +82,54 @@ func GetDiskDev() ([]string, error) {
     return baseNames, nil
 }
 
-func stringsContains(array []string, val string) (bool) {
+func StringsContains(array []string, val string) bool {
     for i := 0; i < len(array); i++ {
         if array[i] == val {
             return true  
         }
     }
     return false 
+}
+
+func DiskBaseName(disk string) (string, error) {
+    if ok := strings.HasPrefix(disk, "/dev/"); ok {
+        if _, err := os.Stat(disk); err != nil {
+            return "", err 
+        } else {
+            diskInfo, err := filepath.EvalSymlinks(disk)
+            if err != nil {
+                return "", err
+            } else {
+                return strings.Replace(diskInfo, "/dev/", "", 1), nil
+            }
+        } 
+    } else {
+        return "", errors.New("disk does not exist.")
+    }
+}
+
+func NetDev() ([]string, error) {
+    filename := "/proc/net/dev"
+    lines, err := readLinesOffsetN(filename, 0, -1)
+    if err != nil {
+        return nil, err
+    }
+    
+    var devNames []string
+    for _, line := range lines { 
+        fields := strings.Fields(line)
+        
+        if len(fields) < 17 {
+            continue
+        }
+        if (fields[2] == "0" && fields[10] == "0") {
+            continue
+        }
+        if strings.Contains(fields[0], "face") {
+            continue 
+        }
+
+        devNames = append(devNames, strings.Replace(fields[0], ":", "", 1))
+    }
+    return devNames, nil
 }

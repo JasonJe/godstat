@@ -11,6 +11,7 @@ import (
 	memory "../memory"
 	page   "../page"
 	disk   "../disk"
+	net    "../net"
 )
 
 type SysStat struct {
@@ -19,6 +20,7 @@ type SysStat struct {
 	memory.MemoryStat
 	page.PageStat
     DiskList []disk.DiskStat      `json:"diskList"`
+    NetList  []net.NetStat        `json:"netList"`
 }
 
 func (sysStat *SysStat) CpuUtilization(t int) {
@@ -109,6 +111,34 @@ func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat) {
     }
 }
 
+func (sysStat *SysStat) Net(t int) {
+    netDevices, _ := utils.NetDev()
+    
+    ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
+    netList,  _   := net.NetTicker()
+    totalStat1    := netList[len(netList) - 1]
+    <- ticker.C
+    netList2, _   := net.NetTicker()
+    totalStat2    := netList2[len(netList2) - 1]
+    
+    (*sysStat).NetList = []net.NetStat{}
+    for index, netDev := range netDevices {
+        netStat := net.NetStat{}
+        netStat.Name = netDev 
+        netStat.Recv = netList2[index].Recv - netList[index].Recv
+        netStat.Send = netList2[index].Send - netList[index].Send 
+
+        (*sysStat).NetList = append((*sysStat).NetList, netStat)
+    }
+
+    totalStat := net.NetStat{}
+    totalStat.Name = "total"
+    totalStat.Recv = totalStat2.Recv - totalStat1.Recv
+    totalStat.Send = totalStat2.Send - totalStat1.Send 
+    
+    (*sysStat).NetList = append((*sysStat).NetList, totalStat)
+} 
+
 func (sysStat *SysStat) Run(t int) {
     totalDiskStat := &disk.DiskStat{"total", 0.0, 0.0}
     for {
@@ -116,10 +146,10 @@ func (sysStat *SysStat) Run(t int) {
         sysStat.MemoryInfo()
         sysStat.Paging(t)
         sysStat.Disk(t, totalDiskStat)
-        
+        sysStat.Net(t) 
         time.Sleep(time.Second)
         
-        fmt.Println(sysStat.DiskList)
+        fmt.Println(sysStat.NetList)
     }
 }
 
