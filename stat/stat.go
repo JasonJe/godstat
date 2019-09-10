@@ -3,8 +3,10 @@ package stat
 import (
     "fmt"
 	"os"
+	"sync"
 	"time"
 	"runtime"
+    "encoding/json"
 
 	utils  "../utils"
 	cpu    "../cpu"
@@ -12,6 +14,7 @@ import (
 	page   "../page"
 	disk   "../disk"
 	net    "../net"
+	load   "../load"
 )
 
 type SysStat struct {
@@ -21,9 +24,10 @@ type SysStat struct {
 	page.PageStat
     DiskList []disk.DiskStat      `json:"diskList"`
     NetList  []net.NetStat        `json:"netList"`
+    load.LoadStat 
 }
 
-func (sysStat *SysStat) CpuUtilization(t int) {
+func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Millisecond * time.Duration(t))
 	cpusStat, _ := cpu.CpuTicker()
 	<- ticker.C
@@ -74,13 +78,16 @@ func (sysStat *SysStat) CpuUtilization(t int) {
 
 		sysStat.CpuArray  = append(sysStat.CpuArray, cpuStat)
 	}
+
+	wg.Done()
 }
 
-func (sysStat *SysStat) MemoryInfo() {
-	sysStat.MemoryTicker()	
+func (sysStat *SysStat) MemoryInfo(wg *sync.WaitGroup) {
+	sysStat.MemoryTicker()
+	wg.Done()
 }
 
-func (sysStat *SysStat) Paging(t int) {
+func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 	ticker    := time.NewTicker(time.Millisecond * time.Duration(t))
 	pageStat  := page.PageStat{}
 	pageStat.PageTicker()
@@ -90,9 +97,11 @@ func (sysStat *SysStat) Paging(t int) {
 
 	sysStat.PageIn  = (pageStat2.PageIn  - pageStat.PageIn)  * int64(os.Getpagesize()) * 1
 	sysStat.PageOut = (pageStat2.PageOut - pageStat.PageOut) * int64(os.Getpagesize()) * 1
+
+	wg.Done()
 }
 
-func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat) {
+func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat, wg *sync.WaitGroup) {
     blockDevices, _ := utils.GetDiskDev() 
 
     ticker          := time.NewTicker(time.Millisecond * time.Duration(t))
@@ -109,9 +118,10 @@ func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat) {
         
        (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
     }
+    wg.Done()
 }
 
-func (sysStat *SysStat) Net(t int) {
+func (sysStat *SysStat) Net(t int, wg *sync.WaitGroup) {
     netDevices, _ := utils.NetDev()
     
     ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
@@ -137,19 +147,43 @@ func (sysStat *SysStat) Net(t int) {
     totalStat.Send = totalStat2.Send - totalStat1.Send 
     
     (*sysStat).NetList = append((*sysStat).NetList, totalStat)
+    wg.Done()
 } 
+
+func (sysStat *SysStat) LoadAvg(wg *sync.WaitGroup) {
+    sysStat.LoadTicker()
+    wg.Done()
+}
 
 func (sysStat *SysStat) Run(t int) {
     totalDiskStat := &disk.DiskStat{"total", 0.0, 0.0}
     for {
-        sysStat.CpuUtilization(t)
-        sysStat.MemoryInfo()
-        sysStat.Paging(t)
-        sysStat.Disk(t, totalDiskStat)
-        sysStat.Net(t) 
-        time.Sleep(time.Second)
+        startT := time.Now()
+        var wg sync.WaitGroup
+        wg.Add(7)
+
+        go func(sysStat *SysStat, wg *sync.WaitGroup) {
+            sysStat.DateTime = utils.FormatTime(time.Now())
+            wg.Done()
+        }(sysStat, &wg)
+        go sysStat.CpuUtilization(t, &wg)
+        go sysStat.MemoryInfo(&wg)
+        go sysStat.Paging(t, &wg)
+        go sysStat.Disk(t, totalDiskStat, &wg)
+        go sysStat.Net(t, &wg) 
+        go sysStat.LoadAvg(&wg)
+
+        wg.Wait()
+
+        tc := time.Since(startT)
+
+        fmt.Printf("time cost = %v\n", tc)
         
-        fmt.Println(sysStat.NetList)
+        sysStatJson, err := json.MarshalIndent(sysStat, "", "\t")
+        if err != nil {
+            fmt.Println(err)
+        }
+        fmt.Println(string(sysStatJson))
     }
 }
 
