@@ -19,6 +19,19 @@ func (this FormatTime) MarshalJSON() ([]byte, error) {
 	return []byte(stamp), nil
 }
 
+func ByteCountSI(b int64) string {
+    const unit = 1024
+    if b < unit {
+        return fmt.Sprintf("%dB", b)
+    }
+    div, exp := int64(unit), 0
+    for n := b / unit; n >= unit; n /= unit {
+        div *= unit 
+        exp++                            
+    }
+    return fmt.Sprintf("%.1f%cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
 func ReadLines(filename string) ([]string, error) {
 	return readLinesOffsetN(filename, 0, -1)
 }
@@ -51,6 +64,15 @@ func readLinesOffsetN(filename string, offset, limit int) ([]string, error) {
 	return ret, nil
 }
 
+func StringsContains(array []string, val string) int {
+    for i := 0; i < len(array); i++ {
+        if array[i] == val {
+            return i  
+        }
+    }
+    return -1 
+}
+
 func GetDiskDev() ([]string, error) {
     files, _ := filepath.Glob("/sys/block/*")
     var baseNames []string
@@ -74,21 +96,12 @@ func GetDiskDev() ([]string, error) {
         if (reflect.DeepEqual(fields[3:], unUsingDstat)) {
             continue
         }
-        if StringsContains(baseNames, fields[2]) {
+        if StringsContains(baseNames, fields[2]) != -1 {
             continue 
         }
         baseNames = append(baseNames, fields[2])
     }
     return baseNames, nil
-}
-
-func StringsContains(array []string, val string) bool {
-    for i := 0; i < len(array); i++ {
-        if array[i] == val {
-            return true  
-        }
-    }
-    return false 
 }
 
 func DiskBaseName(disk string) (string, error) {
@@ -106,6 +119,39 @@ func DiskBaseName(disk string) (string, error) {
     } else {
         return "", errors.New("disk does not exist.")
     }
+}
+
+func DiskDev() ([]string, error) {
+    var devNames []string
+
+    files, _ := filepath.Glob("/sys/block/*") 
+    for _, file := range files {
+         devName := strings.Split(file, "/")
+         devNames = append(devNames, devName[len(devName) - 1])
+    }
+
+    filename := "/proc/diskstats"
+    lines, err := readLinesOffsetN(filename, 0, -1)
+    if err != nil {
+        return nil, err
+    }
+
+    for _, line := range lines { 
+        fields := strings.Fields(line)
+        
+        if len(fields) < 13 {
+            continue
+        }
+        unUsingDstat := []string{"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"}
+        if (reflect.DeepEqual(fields[3:], unUsingDstat)) {
+            continue
+        }
+        if StringsContains(devNames, fields[2]) != -1 {
+            continue 
+        }
+        devNames = append(devNames, fields[2])
+    }
+    return devNames, nil
 }
 
 func NetDev() ([]string, error) {

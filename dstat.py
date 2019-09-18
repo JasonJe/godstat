@@ -794,7 +794,6 @@ class dstat_disk(dstat):
             return disk
 
     def vars(self):
-        # print("---------------------------")
         ret = []
         if op.disklist:
             varlist = list(map(self.basename, op.disklist))
@@ -814,16 +813,11 @@ class dstat_disk(dstat):
         return ret
 
     def name(self):
-        # print("++++++++++++++++++++")
-        # print(self.vars)
-        # print("++++++++++++++++++++")
         return ['dsk/'+sysfs_dev(name) for name in self.vars]
 
     def extract(self):
         for name in self.vars: self.set2[name] = (0, 0)
-        #  print("===========================")
-        #  print(self.set2, self.vars)
-        #  print("===========================")
+        print(self.vars)
         for l in self.splitlines():
             if len(l) < 13: continue
             if l[5] == '0' and l[9] == '0': continue
@@ -831,9 +825,8 @@ class dstat_disk(dstat):
             if l[3:] == ['0',] * 11: continue
             if not self.diskfilter.match(name):
                 self.set2['total'] = ( self.set2['total'][0] + int(l[5]), self.set2['total'][1] + int(l[9]))
-            # print("----------1-------------------")
-            # print(self.set2["total"], l)
-            # print(int(l[5]), int(l[9]))
+            print("-----------------")
+            print(self.set2['total'], self.set1['total'])
             if name in self.vars and name != 'total':
                 self.set2[name] = ( self.set2[name][0] + int(l[5]), self.set2[name][1] + int(l[9]) )
             for diskset in self.vars:
@@ -841,13 +834,8 @@ class dstat_disk(dstat):
                     for disk in op.diskset[diskset]:
                         if fnmatch.fnmatch(name, disk):
                             self.set2[diskset] = ( self.set2[diskset][0] + int(l[5]), self.set2[diskset][1] + int(l[9]) )
-            # if (l[2] == 'sda' or l[2] == 'sda1' or l[2] == 'sda2'):
-            #     print(name, self.set2[name][0], self.set2[name][1])
         for name in self.set2:
             self.val[name] = list(map(lambda x, y: (y - x) * 512.0 / elapsed, self.set1[name], self.set2[name]))
-            if (name == 'sda' or name == 'dm-0'):
-                # print(name, self.set1[name], self.set2[name])
-                print(name, self.val[name][0], self.val[name][1], elapsed)
         if step == op.delay:
             self.set1.update(self.set2)
 

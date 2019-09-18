@@ -44,7 +44,7 @@ func NetTicker() ([]NetStat, error) {
         tempRecv, _ := strconv.ParseFloat(fields[1], 64)
         tempSend, _ := strconv.ParseFloat(fields[9], 64)
 
-        if utils.StringsContains(devNames, strings.Replace(fields[0], ":", "", 1)) {
+        if utils.StringsContains(devNames, strings.Replace(fields[0], ":", "", 1)) != -1 {
             netStat.getNetStat(tempRecv, tempSend)
             netList[index] = netStat // 除了指针、map、slice、chan等引用类型外，所有传参都是传值，都是一个副本/拷贝 
         }

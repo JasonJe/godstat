@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 	"runtime"
-    "encoding/json"
+    "github.com/gosuri/uilive"
 
 	utils  "../utils"
 	cpu    "../cpu"
@@ -33,6 +33,7 @@ func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
 	<- ticker.C
 	cpusStat2, _ := cpu.CpuTicker()
 
+    (*sysStat).CpuArray = []cpu.CpuStat{}
 	for i := 0; i < runtime.NumCPU() + 1; i++ {
 		cpuStat := cpu.CpuStat{}
 
@@ -76,9 +77,8 @@ func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
 		cpuStat.Guest     = 100 * (guest2 - guest) / (cpu2 - cpu)
 		cpuStat.GuestNice = 100 * (guestNice2 - guestNice) / (cpu2 - cpu)
 
-		sysStat.CpuArray  = append(sysStat.CpuArray, cpuStat)
+		(*sysStat).CpuArray  = append((*sysStat).CpuArray, cpuStat)
 	}
-
 	wg.Done()
 }
 
@@ -101,23 +101,52 @@ func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat, wg *sync.WaitGroup) {
-    blockDevices, _ := utils.GetDiskDev() 
+// func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat, wg *sync.WaitGroup) {
+//     blockDevices, _ := utils.GetDiskDev() 
+// 
+//     ticker          := time.NewTicker(time.Millisecond * time.Duration(t))
+//     diskList,  _    := disk.DiskTicker(totalDiskStat)
+//     <- ticker.C
+//     diskList2, _    := disk.DiskTicker(totalDiskStat)
+// 
+//     (*sysStat).DiskList = []disk.DiskStat{}
+//     (*sysStat).DiskList = append((*sysStat).DiskList, disk.DiskStat{"total", diskList2["total"].Read  - diskList["total"].Read, diskList2["total"].Write - diskList["total"].Write})
+//     for _, name := range blockDevices {
+//         diskStat := disk.DiskStat{}
+//         diskStat.Name    = name
+//         diskStat.Read    = (diskList2[name].Read  - diskList[name].Read)  * 512.0
+//         diskStat.Write   = (diskList2[name].Write - diskList[name].Write) * 512.0
+//         
+//         (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
+//     }
+//     wg.Done()
+// }
 
-    ticker          := time.NewTicker(time.Millisecond * time.Duration(t))
-    diskList,  _    := disk.DiskTicker(totalDiskStat)
+func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
+    
+    ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
+    diskList,  _  := disk.DiskTicker()
+    // totalStat1    := diskList[len(diskList) - 1]
     <- ticker.C
-    diskList2, _    := disk.DiskTicker(totalDiskStat)
+    diskList2, _  := disk.DiskTicker()
+    // totalStat2    := diskList2[len(diskList2) - 1]
 
-    (*sysStat).DiskList = []disk.DiskStat{} 
-    for _, name := range blockDevices {
+    (*sysStat).DiskList = []disk.DiskStat{}
+    for index := 0; index < len(diskList); index ++ {
         diskStat := disk.DiskStat{}
-        diskStat.Name    = name
-        diskStat.Read    = (diskList2[name].Read  - diskList[name].Read)  * 512.0
-        diskStat.Write   = (diskList2[name].Write - diskList[name].Write) * 512.0
-        
-       (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
+        diskStat.Name  = diskList[index].Name 
+        diskStat.Read  = (diskList2[index].Read  - diskList[index].Read) * 512.0
+        diskStat.Write = (diskList2[index].Write - diskList[index].Write) * 512.0
+
+        (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
     }
+
+    // totalStat := disk.DiskStat{}
+    // totalStat.Name  = "total"
+    // totalStat.Read  = totalStat2.Read  - totalStat1.Read 
+    // totalStat.Write = totalStat2.Write - totalStat1.Write
+    // 
+    // (*sysStat).DiskList = append((*sysStat).DiskList, totalStat)  
     wg.Done()
 }
 
@@ -156,7 +185,9 @@ func (sysStat *SysStat) LoadAvg(wg *sync.WaitGroup) {
 }
 
 func (sysStat *SysStat) Run(t int) {
-    totalDiskStat := &disk.DiskStat{"total", 0.0, 0.0}
+    writer        := uilive.New()
+    writer.Start()
+
     for {
         startT := time.Now()
         var wg sync.WaitGroup
@@ -169,21 +200,26 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.CpuUtilization(t, &wg)
         go sysStat.MemoryInfo(&wg)
         go sysStat.Paging(t, &wg)
-        go sysStat.Disk(t, totalDiskStat, &wg)
+        go sysStat.Disk(t, &wg)
         go sysStat.Net(t, &wg) 
         go sysStat.LoadAvg(&wg)
 
         wg.Wait()
-
-        tc := time.Since(startT)
-
-        fmt.Printf("time cost = %v\n", tc)
         
-        sysStatJson, err := json.MarshalIndent(sysStat, "", "\t")
-        if err != nil {
-            fmt.Println(err)
-        }
-        fmt.Println(string(sysStatJson))
+        diskListLength := len((*sysStat).DiskList)
+        netListLength  := len((*sysStat).NetList)
+        tc := time.Since(startT)
+        fmt.Fprintf(writer, "time const = %v\n", tc) 
+        fmt.Fprintf(writer, "----  cpu (%%)  ---- | -------- memory usage --------- | - paging - | ---- disk total ---- | ---- net total ----|\n")
+        fmt.Fprintf(writer, "user | sys  | idel  |  used  |  free |buffers| cached |  in |  out |    in    |    out    |  recv  |  send  |\n")
+        fmt.Fprintf(writer, "%.2f | %.2f | %.2f | %s | %s | %s | %s |  %s |  %s  | %s | %s | %s | %s |\n", 
+            (*sysStat).CpuArray[0].User, (*sysStat).CpuArray[0].System, (*sysStat).CpuArray[0].Idle, 
+            utils.ByteCountSI(int64((*sysStat).Used)), utils.ByteCountSI(int64((*sysStat).Free)), utils.ByteCountSI(int64((*sysStat).Buffers)), utils.ByteCountSI(int64((*sysStat).Cached)), 
+            utils.ByteCountSI((*sysStat).PageIn), utils.ByteCountSI((*sysStat).PageOut),
+            utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Read)), utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Write)),
+            utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Recv)), utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Send)))
+        
     }
+    writer.Stop()
 }
 
