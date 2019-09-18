@@ -130,7 +130,7 @@ func DiskDev() ([]string, error) {
          devNames = append(devNames, devName[len(devName) - 1])
     }
 
-    filename := "/proc/diskstats"
+    filename   := "/proc/diskstats"
     lines, err := readLinesOffsetN(filename, 0, -1)
     if err != nil {
         return nil, err
@@ -155,7 +155,7 @@ func DiskDev() ([]string, error) {
 }
 
 func NetDev() ([]string, error) {
-    filename := "/proc/net/dev"
+    filename   := "/proc/net/dev"
     lines, err := readLinesOffsetN(filename, 0, -1)
     if err != nil {
         return nil, err
@@ -178,4 +178,22 @@ func NetDev() ([]string, error) {
         devNames = append(devNames, strings.Replace(fields[0], ":", "", 1))
     }
     return devNames, nil
+}
+
+func SwapList() ([]string, error) {
+    filename   := "/proc/swaps"
+    lines, err := readLinesOffsetN(filename, 0, -1)
+    if err != nil {
+        return nil, err 
+    }
+
+    var swapList []string
+    for _, line := range lines {
+        fields := strings.Fields(line)
+        if (len(fields) < 5) || fields[0] == "Filename" {
+            continue 
+        }
+        swapList = append(swapList, fields[0])
+    }
+    return swapList, nil
 }

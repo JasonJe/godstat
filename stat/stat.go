@@ -15,6 +15,7 @@ import (
 	disk   "../disk"
 	net    "../net"
 	load   "../load"
+	swap   "../swap"
 )
 
 type SysStat struct {
@@ -25,6 +26,7 @@ type SysStat struct {
     DiskList []disk.DiskStat      `json:"diskList"`
     NetList  []net.NetStat        `json:"netList"`
     load.LoadStat 
+    SwapList []swap.SwapStat      `json:"swapList"`
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -101,35 +103,11 @@ func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-// func (sysStat *SysStat) Disk(t int, totalDiskStat *disk.DiskStat, wg *sync.WaitGroup) {
-//     blockDevices, _ := utils.GetDiskDev() 
-// 
-//     ticker          := time.NewTicker(time.Millisecond * time.Duration(t))
-//     diskList,  _    := disk.DiskTicker(totalDiskStat)
-//     <- ticker.C
-//     diskList2, _    := disk.DiskTicker(totalDiskStat)
-// 
-//     (*sysStat).DiskList = []disk.DiskStat{}
-//     (*sysStat).DiskList = append((*sysStat).DiskList, disk.DiskStat{"total", diskList2["total"].Read  - diskList["total"].Read, diskList2["total"].Write - diskList["total"].Write})
-//     for _, name := range blockDevices {
-//         diskStat := disk.DiskStat{}
-//         diskStat.Name    = name
-//         diskStat.Read    = (diskList2[name].Read  - diskList[name].Read)  * 512.0
-//         diskStat.Write   = (diskList2[name].Write - diskList[name].Write) * 512.0
-//         
-//         (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
-//     }
-//     wg.Done()
-// }
-
 func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
-    
     ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
     diskList,  _  := disk.DiskTicker()
-    // totalStat1    := diskList[len(diskList) - 1]
     <- ticker.C
     diskList2, _  := disk.DiskTicker()
-    // totalStat2    := diskList2[len(diskList2) - 1]
 
     (*sysStat).DiskList = []disk.DiskStat{}
     for index := 0; index < len(diskList); index ++ {
@@ -141,12 +119,6 @@ func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
         (*sysStat).DiskList = append((*sysStat).DiskList, diskStat)
     }
 
-    // totalStat := disk.DiskStat{}
-    // totalStat.Name  = "total"
-    // totalStat.Read  = totalStat2.Read  - totalStat1.Read 
-    // totalStat.Write = totalStat2.Write - totalStat1.Write
-    // 
-    // (*sysStat).DiskList = append((*sysStat).DiskList, totalStat)  
     wg.Done()
 }
 
@@ -184,6 +156,12 @@ func (sysStat *SysStat) LoadAvg(wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func (sysStat *SysStat) Swap(wg *sync.WaitGroup) {
+    swapList, _ := swap.SwapTicker()
+    (*sysStat).SwapList = swapList
+    wg.Done()
+}
+
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
@@ -191,7 +169,7 @@ func (sysStat *SysStat) Run(t int) {
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(7)
+        wg.Add(8)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -203,22 +181,26 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.Disk(t, &wg)
         go sysStat.Net(t, &wg) 
         go sysStat.LoadAvg(&wg)
+        go sysStat.Swap(&wg)
 
         wg.Wait()
         
         diskListLength := len((*sysStat).DiskList)
         netListLength  := len((*sysStat).NetList)
+        swapListLength := len((*sysStat).SwapList)
         tc := time.Since(startT)
         fmt.Fprintf(writer, "time const = %v\n", tc) 
-        fmt.Fprintf(writer, "----  cpu (%%)  ---- | -------- memory usage --------- | - paging - | ---- disk total ---- | ---- net total ----|\n")
-        fmt.Fprintf(writer, "user | sys  | idel  |  used  |  free |buffers| cached |  in |  out |    in    |    out    |  recv  |  send  |\n")
-        fmt.Fprintf(writer, "%.2f | %.2f | %.2f | %s | %s | %s | %s |  %s |  %s  | %s | %s | %s | %s |\n", 
+        fmt.Fprintf(writer, "| --- datetime ---- | ---  cpu(%%) --- | --------- memory usage ---------- | --- paging ---- | - disk total -- | -- net total -- | ---- load avg ---- | ---- swap ----- |\n")
+        fmt.Fprintf(writer, "|           datetime| user|  sys| idel|    used|    free| buffers|  cached|      in|     out|      in|     out|    recv|    send| load| load5| load15|    used|    free|\n")
+        fmt.Fprintf(writer, "|%s|%5.2f|%5.2f|%5.2f|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%5.2f|%6.2f|%7.2f|%8s|%8s|\n",
+            time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05"),
             (*sysStat).CpuArray[0].User, (*sysStat).CpuArray[0].System, (*sysStat).CpuArray[0].Idle, 
             utils.ByteCountSI(int64((*sysStat).Used)), utils.ByteCountSI(int64((*sysStat).Free)), utils.ByteCountSI(int64((*sysStat).Buffers)), utils.ByteCountSI(int64((*sysStat).Cached)), 
             utils.ByteCountSI((*sysStat).PageIn), utils.ByteCountSI((*sysStat).PageOut),
             utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Read)), utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Write)),
-            utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Recv)), utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Send)))
-        
+            utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Recv)), utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Send)),
+            (*sysStat).Load1, (*sysStat).Load5, (*sysStat).Load15,
+            utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Used)), utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Free)))
     }
     writer.Stop()
 }

@@ -1549,7 +1549,7 @@ class dstat_swap_old(dstat):
         self.vars = ('SwapUsed', 'SwapFree')
         self.type = 'd'
         self.open('/proc/meminfo')
-
+    
     def extract(self):
         for l in self.splitlines():
             if len(l) < 2: continue
