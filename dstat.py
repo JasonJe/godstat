@@ -1100,6 +1100,8 @@ class dstat_int(dstat):
             self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
 
         if step == op.delay:
+            print("---------------------")
+            print(self.vars)
             self.set1.update(self.set2)
 
 class dstat_int24(dstat):
@@ -1573,6 +1575,7 @@ class dstat_sys(dstat):
         for l in self.splitlines():
             if len(l) < 2: continue
             name = l[0]
+            print(name)
             if name in self.vars:
                 self.set2[name] = int(l[1])
 
@@ -1580,6 +1583,7 @@ class dstat_sys(dstat):
             self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
 
         if step == op.delay:
+            print(self.val)
             self.set1.update(self.set2)
 
 class dstat_tcp(dstat):

@@ -16,6 +16,7 @@ import (
 	net    "../net"
 	load   "../load"
 	swap   "../swap"
+	system "../system"
 )
 
 type SysStat struct {
@@ -27,6 +28,7 @@ type SysStat struct {
     NetList  []net.NetStat        `json:"netList"`
     load.LoadStat 
     SwapList []swap.SwapStat      `json:"swapList"`
+    system.SystemStat 
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -162,14 +164,31 @@ func (sysStat *SysStat) Swap(wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func (sysStat *SysStat) System(t int, wg *sync.WaitGroup) {
+    ticker      := time.NewTicker(time.Millisecond * time.Duration(t)) 
+    systemStat  := system.SystemStat{}
+    systemStat.SystemTicker()
+    <- ticker.C 
+    systemStat2 := system.SystemStat{}
+    systemStat2.SystemTicker()
+    
+    sysStat.Interrupt     = systemStat2.Interrupt     - systemStat.Interrupt 
+    sysStat.ContextSwitch = systemStat2.ContextSwitch - systemStat.ContextSwitch
+
+    wg.Done()
+}
+
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
+    
+    fmt.Printf("| --- datetime ---- | ---  cpu(%%) --- | --------- memory usage ---------- | --- paging ---- | - disk total -- | -- net total -- | ---- load avg ---- | ---- swap ----- | --- system ---- |\n")
+    fmt.Printf("|           datetime| user|  sys| idel|    used|    free| buffers|  cached|      in|     out|      in|     out|    recv|    send| load| load5| load15|    used|    free|    intr|     csw|\n")
 
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(8)
+        wg.Add(9)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -182,6 +201,7 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.Net(t, &wg) 
         go sysStat.LoadAvg(&wg)
         go sysStat.Swap(&wg)
+        go sysStat.System(t, &wg)
 
         wg.Wait()
         
@@ -189,10 +209,7 @@ func (sysStat *SysStat) Run(t int) {
         netListLength  := len((*sysStat).NetList)
         swapListLength := len((*sysStat).SwapList)
         tc := time.Since(startT)
-        fmt.Fprintf(writer, "time const = %v\n", tc) 
-        fmt.Fprintf(writer, "| --- datetime ---- | ---  cpu(%%) --- | --------- memory usage ---------- | --- paging ---- | - disk total -- | -- net total -- | ---- load avg ---- | ---- swap ----- |\n")
-        fmt.Fprintf(writer, "|           datetime| user|  sys| idel|    used|    free| buffers|  cached|      in|     out|      in|     out|    recv|    send| load| load5| load15|    used|    free|\n")
-        fmt.Fprintf(writer, "|%s|%5.2f|%5.2f|%5.2f|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%5.2f|%6.2f|%7.2f|%8s|%8s|\n",
+        fmt.Fprintf(writer, "|%s|%5.2f|%5.2f|%5.2f|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%5.2f|%6.2f|%7.2f|%8s|%8s|%8s|%8s|\n",
             time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05"),
             (*sysStat).CpuArray[0].User, (*sysStat).CpuArray[0].System, (*sysStat).CpuArray[0].Idle, 
             utils.ByteCountSI(int64((*sysStat).Used)), utils.ByteCountSI(int64((*sysStat).Free)), utils.ByteCountSI(int64((*sysStat).Buffers)), utils.ByteCountSI(int64((*sysStat).Cached)), 
@@ -200,7 +217,10 @@ func (sysStat *SysStat) Run(t int) {
             utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Read)), utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Write)),
             utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Recv)), utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Send)),
             (*sysStat).Load1, (*sysStat).Load5, (*sysStat).Load15,
-            utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Used)), utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Free)))
+            utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Used)), utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Free)), 
+            utils.ByteCountSI(int64(sysStat.Interrupt)), utils.ByteCountSI(int64(sysStat.ContextSwitch)))
+
+        fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()
 }
