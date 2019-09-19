@@ -182,6 +182,7 @@ func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
     
+    fmt.Println(runtime.GOARCH, runtime.GOOS, runtime.GOARCH)
     fmt.Printf("| --- datetime ---- | ---  cpu(%%) --- | --------- memory usage ---------- | --- paging ---- | - disk total -- | -- net total -- | ---- load avg ---- | ---- swap ----- | --- system ---- |\n")
     fmt.Printf("|           datetime| user|  sys| idel|    used|    free| buffers|  cached|      in|     out|      in|     out|    recv|    send| load| load5| load15|    used|    free|    intr|     csw|\n")
 
