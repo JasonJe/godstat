@@ -2,9 +2,11 @@ package main
 
 import (
     "fmt"
+    "os"
     "unsafe"
     "syscall"
     "strings"
+    "runtime"
 
     utils "../utils"
 )
@@ -14,9 +16,8 @@ type SystemConfig interface {
 }
 
 type KernelConfig struct {
-    Release       string `json:"release"`
-    Version       string `json:"version"`
-    Architercture string `json:"architercture"`
+    Release       string `json:"kernelRelease"`
+    Version       string `json:"kernelVersion"`
 }
 
 func (kernelConfig *KernelConfig) GetConfig() error {
@@ -30,27 +31,101 @@ func (kernelConfig *KernelConfig) GetConfig() error {
 
     kernelConfig.Release = release[0]
     kernelConfig.Version = version[0]
-    // unsafe.Pointer() 包含任意类型的地址
-    // (*[65]byte)(unsafe.Pointer(&uname.Machine)) 将该地址装维 byte 数组
-    // strings.TrimRight() 删除字符串右边指定字符
-    kernelConfig.Architercture = strings.TrimRight(string((*[65]byte)(unsafe.Pointer(&uname.Machine))[:]), "\000")
     return nil
 }
 
 type OsConfig struct {
-    Name          string `json:"name"`
-    Vendor        string `json:"vendor"`
-    Version       string `json:"version"`
-    Release       string `json:"release"`
-    Architercture string `json:"architercture"`
+    Name          string `json:"OSName"`
+    Vendor        string `json:"OSVendor"`
+    Version       string `json:"OSVersion"`
+    Release       string `json:"OSRelease"`
+    Architercture string `json:"OSArchitercture"`
 }
 
 func (osConfig *OsConfig) GetConfig() error {
-    osConfig.Name = "CentOS Linux 7 (Core)"
-    osConfig.Vendor = "centos"
-    osConfig.Version = "7"
-    osConfig.Release = "7.2.1511"
-    osConfig.Architercture = "amd64"
+    var uname syscall.Utsname
+    if err := syscall.Uname(&uname); err != nil {
+        return err
+    }
+    // unsafe.Pointer() 包含任意类型的地址
+    // (*[65]byte)(unsafe.Pointer(&uname.Machine)) 将该地址装维 byte 数组
+    // strings.TrimRight() 删除字符串右边指定字符
+    osConfig.Architercture = strings.TrimRight(string((*[65]byte)(unsafe.Pointer(&uname.Machine))[:]), "\000")
+    
+    osReleaseFile := ".``/os-release"
+    lines, err := utils.ReadLines(osReleaseFile)
+    if err != nil {
+        if os.IsNotExist(err) {
+            if _, err := os.Stat("/etc/redhat-release"); !os.IsNotExist(err) {
+                osReleaseFile = "/etc/redhat-release"
+                lines, err = utils.ReadLines(osReleaseFile)
+            } else if _, err := os.Stat("/etc/centos-release"); !os.IsNotExist(err) {
+                osReleaseFile = "/etc/centos-release"
+                lines, err = utils.ReadLines(osReleaseFile)
+            } else {
+                return err 
+            }
+        } else {
+            return err
+        }
+    }
+    
+    for _, line := range lines {
+        fields := strings.Split(line, "=")
+        switch fields[0] {
+        case "NAME": 
+            osConfig.Name = fields[1]
+        case "ID":
+            osConfig.Vendor = fields[1]
+        case "VERSION_ID":
+            osConfig.Version = fields[1]
+        case "PRETTY_NAME":
+            osConfig.Release = fields[1]
+        }
+    }
+    return nil
+}
+
+type CpuConfig struct {
+    Vendor  string `json:"CPUVendor"`
+    Model   string `json:"CPUModel"`
+    Speed   int    `json:"CPUSpeed"`
+    Cache   string `json:"CPUCache"`
+    Cpus    int    `json:"CPUs"`
+    Cores   int    `json:"CPUCores"`
+    Threads int    `json:"CPUThread"`
+}
+
+func (cpuConfig *CpuConfig) GetConfig() error {
+    var cpuID string 
+    lines, _ := utils.ReadLines("/proc/cpuinfo")
+    cpu      := make(map[string]bool)
+    core     := make(map[string]bool)
+
+    for _, line := range lines {            
+        fields := strings.Split(line, ":")
+        if len(fields) < 2 {
+            continue
+        }
+        fmt.Println(strings.TrimSpace(fields[0]) == "cache size", strings.TrimSpace(fields[1]))
+        switch strings.TrimSpace(fields[0]) {
+        case "physical id":
+            cpuID            = strings.TrimSpace(fields[1])
+            cpu[cpuID]       = true 
+        case "core id":
+            coreID          := fmt.Sprintf("%s:%s", cpuID, strings.TrimSpace(fields[1]))
+            core[coreID]     = true
+        case "vendor_id":
+            cpuConfig.Vendor = strings.TrimSpace(fields[1])
+        case "model name":
+            cpuConfig.Model  = strings.TrimSpace(fields[1])
+        case "cache size":
+            cpuConfig.Cache  = strings.TrimSpace(fields[1])
+        }
+    }
+    cpuConfig.Cpus    = len(cpu)
+    cpuConfig.Cores   = len(core) 
+    cpuConfig.Threads = runtime.NumCPU()
     return nil
 }
 
@@ -62,6 +137,13 @@ func main() {
     fmt.Println(config)
 
     config = &OsConfig{}
+    err := config.GetConfig()
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println(config)
+
+    config = &CpuConfig{}
     config.GetConfig()
     fmt.Println(config)
 }
