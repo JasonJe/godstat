@@ -3,10 +3,14 @@ package main
 import (
     "fmt"
     "os"
+    //"bytes"
+    //"encoding/binary"
+    "path" 
     "unsafe"
     "syscall"
     "strings"
     "runtime"
+    "io/ioutil"
 
     utils "../utils"
 )
@@ -52,7 +56,7 @@ func (osConfig *OsConfig) GetConfig() error {
     // strings.TrimRight() 删除字符串右边指定字符
     osConfig.Architercture = strings.TrimRight(string((*[65]byte)(unsafe.Pointer(&uname.Machine))[:]), "\000")
     
-    osReleaseFile := ".``/os-release"
+    osReleaseFile := "/etc/os-release"
     lines, err := utils.ReadLines(osReleaseFile)
     if err != nil {
         if os.IsNotExist(err) {
@@ -107,7 +111,7 @@ func (cpuConfig *CpuConfig) GetConfig() error {
         if len(fields) < 2 {
             continue
         }
-        fmt.Println(strings.TrimSpace(fields[0]) == "cache size", strings.TrimSpace(fields[1]))
+        
         switch strings.TrimSpace(fields[0]) {
         case "physical id":
             cpuID            = strings.TrimSpace(fields[1])
@@ -129,6 +133,41 @@ func (cpuConfig *CpuConfig) GetConfig() error {
     return nil
 }
 
+// type MemoryConfig struct {
+//     Type  string `json:"memoryType"`
+//     Speed int    `json:"memorySpeed"`
+//     Size  int    `json:"memorySize"`
+// }
+// 
+// func (memoryConfig *MemoryConfig) GetConfig() error {
+//     mem, err := ioutil.ReadFile("/sys/firmware/dmi/tables/DMI")
+//     if err != nil {
+//         fmt.Println(err)
+//         return err 
+//     }
+//     fmt.Println(mem)
+//     for p := 0; p < len(mem) - 1; {
+//         recType := mem[p]
+//         recLen := mem[p+1]
+// 
+//         switch recType {
+//         case 17:
+//             index := p+0x0c
+//             size  := binary.LittleEndian.Uint16(mem[index: index+2])
+// 
+//             fmt.Println(size)
+//         }
+//         for p += int(recLen); p < len(mem) - 1; {
+//             if bytes.Equal(mem[p:p+2], []byte{0, 0}) {
+//                 p += 2
+//                 break                                                            
+//             }
+//             p++
+//         }
+//     }
+//     return nil 
+// }
+
 func main() {
     var config SystemConfig 
     
@@ -146,4 +185,28 @@ func main() {
     config = &CpuConfig{}
     config.GetConfig()
     fmt.Println(config)
+
+//    config = &MemoryConfig{}
+//    config.GetConfig()
+
+    devices, err := ioutil.ReadDir("/sys/class/net") // 读取下面的所有目录、文件
+    if err != nil {
+        panic(err)
+    }
+    for _, link := range devices {
+        fullpath := path.Join("/sys/class/net", link.Name())
+        dev, err := os.Readlink(fullpath)
+        if err != nil {
+            continue 
+        }
+
+        if strings.HasPrefix(dev, "../../devices/virtual/") {
+            continue 
+        }
+    
+        config = &NICConfig{Name: link.Name()}
+        config.GetConfig()
+        fmt.Println(config)
+
+    }
 }
