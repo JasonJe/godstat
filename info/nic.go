@@ -198,7 +198,7 @@ func (eth *ethtool) inetAddr(intf string) (error) {
     return nil 
 }
 
-func (nicConfig *NICConfig) GetConfig() error {
+func (nicConfig *NICConfig) GetConfig(args ...interface{}) error {
     eth, err := newEthtool()
     if err != nil {
         return err   

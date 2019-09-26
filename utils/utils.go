@@ -79,7 +79,7 @@ func GetDiskDev() ([]string, error) {
     for _, file := range files {
          baseName := strings.Split(file, "/")
          baseNames = append(baseNames, baseName[len(baseName) - 1])
-     }
+    }
     
     filename := "/proc/diskstats"
     lines, err := readLinesOffsetN(filename, 0, -1)
