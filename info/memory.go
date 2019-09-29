@@ -53,7 +53,7 @@ func (memoryConfig *MemoryConfig) GetConfig(args ...interface{}) error {
     // 安全类型断言，失败value则为类型T对应的零值
     // value,ok := expression.(T) 
     // 非安全类型断言，失败时会panic()
-    // value := expression.(T) 
+    // value := expression.(T)
     if s, ok := args[0].(*smbios.Structure); ok { // 类型断言 
         if 0x14 > len(s.Formatted) - 1 {
             return errors.New("Unknown")               

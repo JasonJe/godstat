@@ -52,9 +52,7 @@ func main() {
     for _, s := range SS {
         if byte(s.Header.Type) == 4 {
             config = &CpuConfig{}
-            args := make([]interface{}, 1)
-            args[0] = s
-            config.GetConfig(args...)
+            config.GetConfig(s)
             fmt.Println(config)    
         }
     }
@@ -62,9 +60,7 @@ func main() {
     for _, s := range SS {
         if byte(s.Header.Type) == 17 {
             config = &MemoryConfig{}
-            args := make([]interface{}, 1)
-            args[0] = s
-            e := config.GetConfig(args...)
+            e := config.GetConfig(s)
             if e != nil {
                 continue
             }
@@ -86,11 +82,9 @@ func main() {
         if strings.HasPrefix(dev, "../../devices/virtual/") {
             continue 
         }
-    
-        config = &NICConfig{Name: link.Name()}
-        config.GetConfig()
+        config = &NICConfig{}
+        config.GetConfig(link.Name())
         fmt.Println(config)
-
     }
     
     devNames, err := utils.DiskDev()
@@ -116,15 +110,11 @@ func main() {
             continue 
         }
         config  = &StroageConfig{}
-        args   := make([]interface{}, 1)
-        args[0] = diskDev 
-        err = config.GetConfig(args...)
+        err = config.GetConfig(diskDev)
         if err != nil {
-            fmt.Println(config)
             continue
         }
-        fmt.Println("----------", config)
-        
+        fmt.Println(config)
     }
 
     lines, err := utils.ReadLines("/proc/mounts")
@@ -132,14 +122,11 @@ func main() {
         panic(err)
     }
     for _, line := range lines {
-        args   := make([]interface{}, 1)
-        args[0] = line 
         config = &FileSystemConfig{}
-        err := config.GetConfig(args...)
+        err := config.GetConfig(line)
         if err != nil {
             continue
         }
         fmt.Println(config)
     }
-
 }

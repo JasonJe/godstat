@@ -5,6 +5,7 @@ import (
     "bytes"
     "syscall"
     "unsafe"
+    "errors"
     "strings"
 )
 
@@ -199,36 +200,40 @@ func (eth *ethtool) inetAddr(intf string) (error) {
 }
 
 func (nicConfig *NICConfig) GetConfig(args ...interface{}) error {
-    eth, err := newEthtool()
-    if err != nil {
-        return err   
-    }
+    if name, ok := args[0].(string); ok {
+        nicConfig.Name = name
+        eth, err := newEthtool()
+        if err != nil {
+            return err   
+        }
 
-    err = eth.driverName(nicConfig.Name)
-    if err != nil {
-        return err
-    }
+        err = eth.driverName(nicConfig.Name)
+        if err != nil {
+            return err
+        }
 
-    err = eth.permAddr(nicConfig.Name)
-    if err != nil {
-        return err
-    }
+        err = eth.permAddr(nicConfig.Name)
+        if err != nil {
+            return err
+        }
 
-    err = eth.inetAddr(nicConfig.Name)
-    if err != nil {
-        return err
-    }
+        err = eth.inetAddr(nicConfig.Name)
+        if err != nil {
+            return err
+        }
 
-    err = eth.settingInfo(nicConfig.Name)
-    if err != nil {
-        return err
+        err = eth.settingInfo(nicConfig.Name)
+        if err != nil {
+            return err
+        }
+        
+        nicConfig.Driver = eth.driver 
+        nicConfig.MACAddress = eth.macAddr 
+        nicConfig.Ports = eth.port 
+        nicConfig.Speed = eth.maxSpeed
+        nicConfig.IP = eth.ip
+       
+        return nil
     }
-    
-    nicConfig.Driver = eth.driver 
-    nicConfig.MACAddress = eth.macAddr 
-    nicConfig.Ports = eth.port 
-    nicConfig.Speed = eth.maxSpeed
-    nicConfig.IP = eth.ip
-   
-    return nil
+    return errors.New("Unkown")
 }
