@@ -1,4 +1,4 @@
-package main 
+package info 
 
 import (
     "fmt"
@@ -9,7 +9,7 @@ import (
     "runtime"
 
     "github.com/digitalocean/go-smbios/smbios"
-    utils "../utils"
+    utils "godstat/utils"
 )
 
 type CpuConfig struct {

@@ -5,7 +5,7 @@ import (
     "strings"
     "strconv"
 
-    utils "../utils"
+    utils "godstat/utils"
 )
 
 type NetStat struct {

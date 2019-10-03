@@ -4,7 +4,7 @@ import (
 	"strings"
 	"strconv"
 
-	utils "../utils"
+	utils "godstat/utils"
 )
 
 type MemoryStat struct {

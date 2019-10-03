@@ -6,7 +6,7 @@ import (
 	"errors"
 	"runtime"
 
-	utils "../utils"
+	utils "godstat/utils"
 )
 
 type CpuStat struct {

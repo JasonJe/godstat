@@ -8,15 +8,15 @@ import (
 	"runtime"
     "github.com/gosuri/uilive"
 
-	utils  "../utils"
-	cpu    "../cpu"
-	memory "../memory"
-	page   "../page"
-	disk   "../disk"
-	net    "../net"
-	load   "../load"
-	swap   "../swap"
-	system "../system"
+	utils  "godstat/utils"
+	cpu    "godstat/cpu"
+	memory "godstat/memory"
+	page   "godstat/page"
+	disk   "godstat/disk"
+	net    "godstat/net"
+	load   "godstat/load"
+	swap   "godstat/swap"
+	system "godstat/system"
 )
 
 type SysStat struct {
@@ -106,10 +106,16 @@ func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 }
 
 func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
-    ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
-    diskList,  _  := disk.DiskTicker()
+    ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
+    diskList, err  := disk.DiskTicker()
+    if err != nil {
+        panic(err)
+    }
     <- ticker.C
-    diskList2, _  := disk.DiskTicker()
+    diskList2, err := disk.DiskTicker()
+    if err != nil {
+        panic(err)
+    }
 
     (*sysStat).DiskList = []disk.DiskStat{}
     for index := 0; index < len(diskList); index ++ {
@@ -203,7 +209,8 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.LoadAvg(&wg)
         go sysStat.Swap(&wg)
         go sysStat.System(t, &wg)
-
+        
+        fmt.Println((*sysStat).DiskList)
         wg.Wait()
         
         diskListLength := len((*sysStat).DiskList)

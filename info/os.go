@@ -1,4 +1,4 @@
-package main 
+package info 
 
 import (
     "os"
@@ -7,7 +7,7 @@ import (
     "strings"
     "io/ioutil"
 
-    utils "../utils"
+    utils "godstat/utils"
 )
 
 type OsConfig struct {

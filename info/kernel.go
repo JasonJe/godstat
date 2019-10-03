@@ -1,9 +1,9 @@
-package main 
+package info 
 
 import (
     "syscall"
 
-    utils "../utils"
+    utils "godstat/utils"
 )
 
 type KernelConfig struct {
