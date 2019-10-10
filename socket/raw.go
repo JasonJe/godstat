@@ -14,6 +14,6 @@ func (rawSocketStat *RawSocketStat) RawSocketTicker() error {
     if err != nil {
         return err 
     }
-    rawSocketStat.NumSockets = len(lines) - 1
+    rawSocketStat.NumSockets = int64(len(lines) - 1)
     return nil
 }

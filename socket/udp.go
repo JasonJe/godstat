@@ -38,4 +38,5 @@ func (udpStat *UDPStat) UDPTicker() error {
         fields  := strings.Fields(line)
         udpStat.selectType(fields[3])
     }
-    return nil 
+    return nil
+}

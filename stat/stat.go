@@ -2,33 +2,43 @@ package stat
 
 import (
     "fmt"
-	"os"
-	"sync"
-	"time"
-	"runtime"
+    "os"
+    "sync"
+    "time"
+    "runtime"
     "github.com/gosuri/uilive"
 
-	utils  "godstat/utils"
-	cpu    "godstat/cpu"
-	memory "godstat/memory"
-	page   "godstat/page"
-	disk   "godstat/disk"
-	net    "godstat/net"
-	load   "godstat/load"
-	swap   "godstat/swap"
-	system "godstat/system"
+    utils      "godstat/utils"
+    cpu        "godstat/cpu"
+    memory     "godstat/memory"
+    page       "godstat/page"
+    disk       "godstat/disk"
+    net        "godstat/net"
+    load       "godstat/load"
+    swap       "godstat/swap"
+    system     "godstat/system"
+    socket     "godstat/socket"
+    filesystem "godstat/filesystem"
+    io         "godstat/io"
 )
 
 type SysStat struct {
-	DateTime utils.FormatTime     `json:"datetime"`
-	CpuArray []cpu.CpuStat        `json:"cpuList"`
-	memory.MemoryStat
-	page.PageStat
-    DiskList []disk.DiskStat      `json:"diskList"`
-    NetList  []net.NetStat        `json:"netList"`
+    DateTime  utils.FormatTime     `json:"datetime"`
+    CpuArray  []cpu.CpuStat        `json:"cpuList"`
+    memory.MemoryStat 
+    page.PageStat 
+    DiskList  []disk.DiskStat      `json:"diskList"`
+    NetList   []net.NetStat        `json:"netList"`
     load.LoadStat
-    SwapList []swap.SwapStat      `json:"swapList"`
+    SwapList  []swap.SwapStat      `json:"swapList"`
     system.SystemStat
+    Socket     socket.SocketStat
+    RawSocket  socket.RawSocketStat
+    UnixSocket socket.UnixSocketStat 
+    TCP        socket.TCPStat 
+    UDP        socket.UDPStat
+    filesystem.FileSystemStat
+    IOList  []io.IOStat            `json:"diskList"`
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -184,6 +194,45 @@ func (sysStat *SysStat) System(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func (sysStat *SysStat) AllSocket(wg *sync.WaitGroup) {
+    sysStat.Socket.SocketTicker()
+    sysStat.RawSocket.RawSocketTicker()
+    sysStat.UnixSocket.UnixSocketTicker() 
+    sysStat.TCP.TCPTicker()
+    sysStat.UDP.UDPTicker() 
+    wg.Done()
+} 
+
+func (sysStat *SysStat) FileSystem(wg *sync.WaitGroup) {
+    sysStat.FileSystemTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) IO(t int, wg *sync.WaitGroup) {
+    ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
+    ioList, err  := io.IOTicker()
+    if err != nil {
+        panic(err)
+    }
+    <- ticker.C
+    ioList2, err := io.IOTicker()
+    if err != nil {
+        panic(err)
+    }
+
+    (*sysStat).IOList = []io.IOStat{}
+    for index := 0; index < len(ioList); index ++ {
+        ioStat := io.IOStat{}
+        ioStat.Name  = ioList[index].Name
+        ioStat.Read  = (ioList2[index].Read  - ioList[index].Read) * 1.0
+        ioStat.Write = (ioList2[index].Write - ioList[index].Write) * 1.0
+
+        (*sysStat).IOList = append((*sysStat).IOList, ioStat)
+    }
+
+    wg.Done()
+}
+
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
@@ -194,7 +243,7 @@ func (sysStat *SysStat) Run(t int) {
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(9)
+        wg.Add(12)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -208,7 +257,9 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.LoadAvg(&wg)
         go sysStat.Swap(&wg)
         go sysStat.System(t, &wg)
-
+        go sysStat.AllSocket(&wg)
+        go sysStat.FileSystem(&wg)
+        go sysStat.IO(t, &wg)
         wg.Wait()
 
         diskListLength := len((*sysStat).DiskList)
@@ -225,8 +276,15 @@ func (sysStat *SysStat) Run(t int) {
             (*sysStat).Load1, (*sysStat).Load5, (*sysStat).Load15,
             utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Used)), utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Free)),
             utils.ByteCountSI(int64(sysStat.Interrupt)), utils.ByteCountSI(int64(sysStat.ContextSwitch)))
-
-        fmt.Fprintf(writer, "time const = %v\n", tc)
+        fmt.Fprintf(writer, "---------------------------------------------\n") 
+        fmt.Fprintf(writer, "|%5d|%5d|%5d|%5d|%5d|%5d|\n", (*sysStat).Socket.Total, (*sysStat).Socket.TCP, (*sysStat).Socket.UDP, (*sysStat).Socket.RAW, (*sysStat).Socket.FRAG, (*sysStat).Socket.Other)
+        fmt.Fprintf(writer, "---------------------------------------------\n") 
+        fmt.Fprintf(writer, "|%5d|%5d|\n", (*sysStat).UsingFileHandle, (*sysStat).UsingInode)
+        fmt.Fprintf(writer, "---------------------------------------------\n") 
+        for _, ioDev := range (*sysStat).IOList {
+            fmt.Fprintf(writer, "|%8s|%5.2f|%5.2f|\n", ioDev.Name, ioDev.Read, ioDev.Write)
+        }
+        fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()
 }
