@@ -39,6 +39,7 @@ type SysStat struct {
     UDP        socket.UDPStat
     filesystem.FileSystemStat
     IOList  []io.IOStat            `json:"diskList"`
+    AIO        io.AIOStat
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -229,9 +230,13 @@ func (sysStat *SysStat) IO(t int, wg *sync.WaitGroup) {
 
         (*sysStat).IOList = append((*sysStat).IOList, ioStat)
     }
-
     wg.Done()
 }
+
+func (sysStat *SysStat) AIO_(wg *sync.WaitGroup) {
+    sysStat.AIO.AIOTicker()
+    wg.Done()
+} 
 
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
@@ -243,7 +248,7 @@ func (sysStat *SysStat) Run(t int) {
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(12)
+        wg.Add(13)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -260,6 +265,7 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.AllSocket(&wg)
         go sysStat.FileSystem(&wg)
         go sysStat.IO(t, &wg)
+        go sysStat.AIO_(&wg)
         wg.Wait()
 
         diskListLength := len((*sysStat).DiskList)
@@ -284,6 +290,8 @@ func (sysStat *SysStat) Run(t int) {
         for _, ioDev := range (*sysStat).IOList {
             fmt.Fprintf(writer, "|%8s|%5.2f|%5.2f|\n", ioDev.Name, ioDev.Read, ioDev.Write)
         }
+        fmt.Fprintf(writer, "---------------------------------------------\n") 
+        fmt.Fprintf(writer, "|%8d|\n", (*sysStat).AIO.Requests)
         fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()
