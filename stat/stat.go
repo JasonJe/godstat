@@ -47,6 +47,7 @@ type SysStat struct {
     IPC        ipc.IPCStat
     Zone       memory.ZoneStat 
     Lock       lock.LockStat 
+    VM         memory.VMStat 
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -270,6 +271,21 @@ func (sysStat *SysStat) LockInfo(wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func (sysStat *SysStat) VMInfo(t int, wg *sync.WaitGroup) {
+    ticker  := time.NewTicker(time.Millisecond * time.Duration(t))
+    vmStat  := memory.VMStat{}
+    vmStat.VMTicker()
+    <- ticker.C
+    vmStat2 := memory.VMStat{}
+    vmStat2.VMTicker()
+
+    sysStat.VM.PgMajFault = vmStat2.PgMajFault - vmStat.PgMajFault 
+    sysStat.VM.PgFault    = vmStat2.PgFault    - vmStat.PgFault 
+    sysStat.VM.PgFree     = vmStat2.PgFree     - vmStat.PgFree 
+    sysStat.VM.PgAlloc    = vmStat2.PgAlloc    - vmStat.PgAlloc
+    wg.Done()
+}
+
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
@@ -280,7 +296,7 @@ func (sysStat *SysStat) Run(t int) {
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(16)
+        wg.Add(17)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -301,6 +317,7 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.Proc_(t, &wg)
         go sysStat.IPC_(&wg)
         go sysStat.LockInfo(&wg)
+        go sysStat.VMInfo(t, &wg)
         wg.Wait()
 
         // diskListLength := len((*sysStat).DiskList)
@@ -333,8 +350,10 @@ func (sysStat *SysStat) Run(t int) {
         // fmt.Fprintf(writer, "|%8d|%8d|%8d|\n", (*sysStat).IPC.MessageQueue, (*sysStat).IPC.Semaphore, (*sysStat).IPC.SharedMemory)
         // fmt.Fprintf(writer, "---------------------------------------------\n")
         // fmt.Fprintf(writer, "|%8s|%8s|%8s|%8s|\n", utils.ByteCountSI((*sysStat).Zone.DMA32Free), utils.ByteCountSI((*sysStat).Zone.DMA32High), utils.ByteCountSI((*sysStat).Zone.NormalFree), utils.ByteCountSI((*sysStat).Zone.NormalHigh))
+        // fmt.Fprintf(writer, "---------------------------------------------\n")
+        // fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).Lock.Posix, (*sysStat).Lock.Flock, (*sysStat).Lock.Read, (*sysStat).Lock.Write)
         fmt.Fprintf(writer, "---------------------------------------------\n")
-        fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).Lock.Posix, (*sysStat).Lock.Flock, (*sysStat).Lock.Read, (*sysStat).Lock.Write)
+        fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).VM.PgMajFault, (*sysStat).VM.PgFault, (*sysStat).VM.PgAlloc, (*sysStat).VM.PgFree)
         fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()

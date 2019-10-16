@@ -24,7 +24,7 @@ func (zoneStat *ZoneStat) ZoneTicker() error {
         if len(fields) < 2 {
             continue
         }
-        if strings.HasSuffix(fields[0], "Node") {
+        if strings.HasPrefix(fields[0], "Node") {
             detail := lines[index: index + 9]
             switch {
             case fields[3] == "DMA32":
