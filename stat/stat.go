@@ -22,6 +22,7 @@ import (
     io         "godstat/io"
     proc       "godstat/proc"
     ipc        "godstat/ipc"
+    lock       "godstat/lock"
 )
 
 type SysStat struct {
@@ -45,6 +46,7 @@ type SysStat struct {
     Proc       proc.ProcStat
     IPC        ipc.IPCStat
     Zone       memory.ZoneStat 
+    Lock       lock.LockStat 
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
@@ -263,6 +265,11 @@ func (sysStat *SysStat) IPC_(wg *sync.WaitGroup) {
     wg.Done()
 }
 
+func (sysStat *SysStat) LockInfo(wg *sync.WaitGroup) {
+    sysStat.Lock.LockTicker()
+    wg.Done()
+}
+
 func (sysStat *SysStat) Run(t int) {
     writer        := uilive.New()
     writer.Start()
@@ -273,7 +280,7 @@ func (sysStat *SysStat) Run(t int) {
     for {
         startT := time.Now()
         var wg sync.WaitGroup
-        wg.Add(15)
+        wg.Add(16)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
@@ -293,6 +300,7 @@ func (sysStat *SysStat) Run(t int) {
         go sysStat.AIO_(&wg)
         go sysStat.Proc_(t, &wg)
         go sysStat.IPC_(&wg)
+        go sysStat.LockInfo(&wg)
         wg.Wait()
 
         // diskListLength := len((*sysStat).DiskList)
@@ -323,8 +331,10 @@ func (sysStat *SysStat) Run(t int) {
         // fmt.Fprintf(writer, "|%5f|%5f|%5f|\n", (*sysStat).Proc.Running, (*sysStat).Proc.Blocked, (*sysStat).Proc.Processes)
         // fmt.Fprintf(writer, "---------------------------------------------\n")
         // fmt.Fprintf(writer, "|%8d|%8d|%8d|\n", (*sysStat).IPC.MessageQueue, (*sysStat).IPC.Semaphore, (*sysStat).IPC.SharedMemory)
+        // fmt.Fprintf(writer, "---------------------------------------------\n")
+        // fmt.Fprintf(writer, "|%8s|%8s|%8s|%8s|\n", utils.ByteCountSI((*sysStat).Zone.DMA32Free), utils.ByteCountSI((*sysStat).Zone.DMA32High), utils.ByteCountSI((*sysStat).Zone.NormalFree), utils.ByteCountSI((*sysStat).Zone.NormalHigh))
         fmt.Fprintf(writer, "---------------------------------------------\n")
-        fmt.Fprintf(writer, "|%8s|%8s|%8s|%8s|\n", utils.ByteCountSI((*sysStat).Zone.DMA32Free), utils.ByteCountSI((*sysStat).Zone.DMA32High), utils.ByteCountSI((*sysStat).Zone.NormalFree), utils.ByteCountSI((*sysStat).Zone.NormalHigh))
+        fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).Lock.Posix, (*sysStat).Lock.Flock, (*sysStat).Lock.Read, (*sysStat).Lock.Write)
         fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()
