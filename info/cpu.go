@@ -3,12 +3,11 @@ package info
 import (
     "fmt"
     "bytes"
-    "encoding/binary"
-    "errors"
+    "syscall"
     "strings"
     "runtime"
+    "encoding/binary"
 
-    "github.com/digitalocean/go-smbios/smbios"
     utils "godstat/utils"
 )
 
@@ -23,41 +22,58 @@ type CpuConfig struct {
 }
 
 func (cpuConfig *CpuConfig) GetConfig(args ...interface{}) error {
-    if s, ok := args[0].(*smbios.Structure); ok {
-        var cpuID string 
-        lines, _ := utils.ReadLines("/proc/cpuinfo")
-        cpu      := make(map[string]bool)
-        core     := make(map[string]bool)
+    var cpuID string 
+    lines, _ := utils.ReadLines("/proc/cpuinfo")
+    cpu      := make(map[string]bool)
+    core     := make(map[string]bool)
 
-        for _, line := range lines {            
-            fields := strings.Split(line, ":")
-            if len(fields) < 2 {
-                continue
-            }
-            
-            switch strings.TrimSpace(fields[0]) {
-            case "physical id":
-                cpuID            = strings.TrimSpace(fields[1])
-                cpu[cpuID]       = true 
-            case "core id":
-                coreID          := fmt.Sprintf("%s:%s", cpuID, strings.TrimSpace(fields[1]))
-                core[coreID]     = true
-            case "vendor_id":
-                cpuConfig.Vendor = strings.TrimSpace(fields[1])
-            case "model name":
-                cpuConfig.Model  = strings.TrimSpace(fields[1])
-            case "cache size":
-                cpuConfig.Cache  = strings.TrimSpace(fields[1])
-            }
+    for _, line := range lines {            
+        fields := strings.Split(line, ":")
+        if len(fields) < 2 {
+            continue
         }
-        cpuConfig.Cpus    = len(cpu)
-        cpuConfig.Cores   = len(core) 
-        cpuConfig.Threads = runtime.NumCPU()
-
-        var speedU uint16 
-        binary.Read(bytes.NewBuffer(s.Formatted[0x12: 0x14][0:2]), binary.LittleEndian, &speedU)
-        cpuConfig.Speed = int(speedU)
-        return nil 
+        
+        switch strings.TrimSpace(fields[0]) {
+        case "physical id":
+            cpuID            = strings.TrimSpace(fields[1])
+            cpu[cpuID]       = true 
+        case "core id":
+            coreID          := fmt.Sprintf("%s:%s", cpuID, strings.TrimSpace(fields[1]))
+            core[coreID]     = true
+        case "vendor_id":
+            cpuConfig.Vendor = strings.TrimSpace(fields[1])
+        case "model name":
+            cpuConfig.Model  = strings.TrimSpace(fields[1])
+        case "cache size":
+            cpuConfig.Cache  = strings.TrimSpace(fields[1])
+        }
     }
-    return errors.New("unkown")
+    cpuConfig.Cpus    = len(cpu)
+    cpuConfig.Cores   = len(core) 
+    cpuConfig.Threads = runtime.NumCPU()
+    
+    mem, err := utils.StructureTable()
+    if err != nil {
+        return err 
+    } 
+    defer syscall.Munmap(mem) // mmap 将一个文件或者其它对象映射进内存, munmap 解除内存映射
+
+    for p := 0; p < len(mem) - 1; {
+        recType := mem[p]
+        recLen  := mem[p + 1]
+        if recType == 4 {
+            speed := binary.LittleEndian.Uint16(mem[p + 0x16: p + 0x16 + 2])
+            cpuConfig.Speed = int(speed)
+        } else if recType == 127 {
+            break
+        }
+        for p += int(recLen); p < len(mem)-1; {
+            if bytes.Equal(mem[p: p + 2], []byte{0, 0}) {
+                p += 2
+                break
+            }
+            p++ 
+        }
+    }
+    return nil 
 }
