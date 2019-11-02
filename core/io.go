@@ -1,4 +1,4 @@
-package io 
+package core 
 
 import (
     "regexp"

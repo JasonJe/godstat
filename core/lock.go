@@ -1,4 +1,4 @@
-package lock
+package core
 
 import (
     "strings"

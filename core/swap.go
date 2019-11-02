@@ -1,4 +1,4 @@
-package swap
+package core
 
 import (
     "strings"

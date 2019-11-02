@@ -1,4 +1,4 @@
-package load 
+package core 
 
 import (
     "strings"

@@ -1,4 +1,4 @@
-package page
+package core
 
 import (
 	"strings"

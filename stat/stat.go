@@ -9,56 +9,43 @@ import (
     "github.com/gosuri/uilive"
 
     utils      "godstat/utils"
-    cpu        "godstat/cpu"
-    memory     "godstat/memory"
-    page       "godstat/page"
-    disk       "godstat/disk"
-    net        "godstat/net"
-    load       "godstat/load"
-    swap       "godstat/swap"
-    system     "godstat/system"
-    socket     "godstat/socket"
-    filesystem "godstat/filesystem"
-    io         "godstat/io"
-    proc       "godstat/proc"
-    ipc        "godstat/ipc"
-    lock       "godstat/lock"
+    core       "godstat/core"
 )
 
 type SysStat struct {
     DateTime  utils.FormatTime     `json:"datetime"`
-    CpuArray  []cpu.CpuStat        `json:"cpuList"`
-    memory.MemoryStat 
-    page.PageStat 
-    DiskList  []disk.DiskStat      `json:"diskList"`
-    NetList   []net.NetStat        `json:"netList"`
-    load.LoadStat
-    SwapList  []swap.SwapStat      `json:"swapList"`
-    system.SystemStat
-    Socket     socket.SocketStat
-    RawSocket  socket.RawSocketStat
-    UnixSocket socket.UnixSocketStat 
-    TCP        socket.TCPStat 
-    UDP        socket.UDPStat
-    filesystem.FileSystemStat
-    IOList  []io.IOStat            `json:"diskList"`
-    AIO        io.AIOStat
-    Proc       proc.ProcStat
-    IPC        ipc.IPCStat
-    Zone       memory.ZoneStat 
-    Lock       lock.LockStat 
-    VM         memory.VMStat 
+    CpuArray  []core.CpuStat        `json:"cpuList"`
+    core.MemoryStat 
+    core.PageStat 
+    DiskList  []core.DiskStat      `json:"diskList"`
+    NetList   []core.NetStat        `json:"netList"`
+    core.LoadStat
+    SwapList  []core.SwapStat      `json:"swapList"`
+    core.SystemStat
+    Socket     core.SocketStat
+    RawSocket  core.RawSocketStat
+    UnixSocket core.UnixSocketStat 
+    TCP        core.TCPStat 
+    UDP        core.UDPStat
+    core.FileSystemStat
+    IOList  []core.IOStat            `json:"diskList"`
+    AIO        core.AIOStat
+    Proc       core.ProcStat
+    IPC        core.IPCStat
+    Zone       core.ZoneStat 
+    Lock       core.LockStat 
+    VM         core.VMStat 
 }
 
 func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Millisecond * time.Duration(t))
-	cpusStat, _ := cpu.CpuTicker()
+	cpusStat, _ := core.CpuTicker()
 	<- ticker.C
-	cpusStat2, _ := cpu.CpuTicker()
+	cpusStat2, _ := core.CpuTicker()
 
-    (*sysStat).CpuArray = []cpu.CpuStat{}
+    (*sysStat).CpuArray = []core.CpuStat{}
 	for i := 0; i < runtime.NumCPU() + 1; i++ {
-		cpuStat := cpu.CpuStat{}
+		cpuStat := core.CpuStat{}
 
 		cpuName := cpusStat[i].CPU
 
@@ -113,10 +100,10 @@ func (sysStat *SysStat) MemoryInfo(wg *sync.WaitGroup) {
 
 func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 	ticker    := time.NewTicker(time.Millisecond * time.Duration(t))
-	pageStat  := page.PageStat{}
+	pageStat  := core.PageStat{}
 	pageStat.PageTicker()
 	<- ticker.C
-	pageStat2 := page.PageStat{}
+	pageStat2 := core.PageStat{}
 	pageStat2.PageTicker()
 
 	sysStat.PageIn  = (pageStat2.PageIn  - pageStat.PageIn)  * int64(os.Getpagesize()) * 1
@@ -127,19 +114,19 @@ func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 
 func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
     ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
-    diskList, err  := disk.DiskTicker()
+    diskList, err  := core.DiskTicker()
     if err != nil {
         panic(err)
     }
     <- ticker.C
-    diskList2, err := disk.DiskTicker()
+    diskList2, err := core.DiskTicker()
     if err != nil {
         panic(err)
     }
 
-    (*sysStat).DiskList = []disk.DiskStat{}
+    (*sysStat).DiskList = []core.DiskStat{}
     for index := 0; index < len(diskList); index ++ {
-        diskStat := disk.DiskStat{}
+        diskStat := core.DiskStat{}
         diskStat.Name  = diskList[index].Name
         diskStat.Read  = (diskList2[index].Read  - diskList[index].Read) * 512.0
         diskStat.Write = (diskList2[index].Write - diskList[index].Write) * 512.0
@@ -154,15 +141,15 @@ func (sysStat *SysStat) Net(t int, wg *sync.WaitGroup) {
     netDevices, _ := utils.NetDev()
 
     ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
-    netList,  _   := net.NetTicker()
+    netList,  _   := core.NetTicker()
     totalStat1    := netList[len(netList) - 1]
     <- ticker.C
-    netList2, _   := net.NetTicker()
+    netList2, _   := core.NetTicker()
     totalStat2    := netList2[len(netList2) - 1]
 
-    (*sysStat).NetList = []net.NetStat{}
+    (*sysStat).NetList = []core.NetStat{}
     for index, netDev := range netDevices {
-        netStat := net.NetStat{}
+        netStat := core.NetStat{}
         netStat.Name = netDev
         netStat.Recv = netList2[index].Recv - netList[index].Recv
         netStat.Send = netList2[index].Send - netList[index].Send
@@ -170,7 +157,7 @@ func (sysStat *SysStat) Net(t int, wg *sync.WaitGroup) {
         (*sysStat).NetList = append((*sysStat).NetList, netStat)
     }
 
-    totalStat := net.NetStat{}
+    totalStat := core.NetStat{}
     totalStat.Name = "total"
     totalStat.Recv = totalStat2.Recv - totalStat1.Recv
     totalStat.Send = totalStat2.Send - totalStat1.Send
@@ -185,17 +172,17 @@ func (sysStat *SysStat) LoadAvg(wg *sync.WaitGroup) {
 }
 
 func (sysStat *SysStat) Swap(wg *sync.WaitGroup) {
-    swapList, _ := swap.SwapTicker()
+    swapList, _ := core.SwapTicker()
     (*sysStat).SwapList = swapList
     wg.Done()
 }
 
 func (sysStat *SysStat) System(t int, wg *sync.WaitGroup) {
     ticker      := time.NewTicker(time.Millisecond * time.Duration(t))
-    systemStat  := system.SystemStat{}
+    systemStat  := core.SystemStat{}
     systemStat.SystemTicker()
     <- ticker.C
-    systemStat2 := system.SystemStat{}
+    systemStat2 := core.SystemStat{}
     systemStat2.SystemTicker()
 
     sysStat.Interrupt     = systemStat2.Interrupt     - systemStat.Interrupt
@@ -220,19 +207,19 @@ func (sysStat *SysStat) FileSystem(wg *sync.WaitGroup) {
 
 func (sysStat *SysStat) IO(t int, wg *sync.WaitGroup) {
     ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
-    ioList, err  := io.IOTicker()
+    ioList, err  := core.IOTicker()
     if err != nil {
         panic(err)
     }
     <- ticker.C
-    ioList2, err := io.IOTicker()
+    ioList2, err := core.IOTicker()
     if err != nil {
         panic(err)
     }
 
-    (*sysStat).IOList = []io.IOStat{}
+    (*sysStat).IOList = []core.IOStat{}
     for index := 0; index < len(ioList); index ++ {
-        ioStat := io.IOStat{}
+        ioStat := core.IOStat{}
         ioStat.Name  = ioList[index].Name
         ioStat.Read  = (ioList2[index].Read  - ioList[index].Read) * 1.0
         ioStat.Write = (ioList2[index].Write - ioList[index].Write) * 1.0
@@ -249,10 +236,10 @@ func (sysStat *SysStat) AIO_(wg *sync.WaitGroup) {
 
 func (sysStat *SysStat) Proc_(t int, wg *sync.WaitGroup) {
     ticker    := time.NewTicker(time.Millisecond * time.Duration(t))
-    procStat  := proc.ProcStat{}
+    procStat  := core.ProcStat{}
     procStat.ProcTicker()
     <- ticker.C
-    procStat2 := proc.ProcStat{}
+    procStat2 := core.ProcStat{}
     procStat2.ProcTicker()
 
     sysStat.Proc.Running   = procStat2.Running
@@ -273,10 +260,10 @@ func (sysStat *SysStat) LockInfo(wg *sync.WaitGroup) {
 
 func (sysStat *SysStat) VMInfo(t int, wg *sync.WaitGroup) {
     ticker  := time.NewTicker(time.Millisecond * time.Duration(t))
-    vmStat  := memory.VMStat{}
+    vmStat  := core.VMStat{}
     vmStat.VMTicker()
     <- ticker.C
-    vmStat2 := memory.VMStat{}
+    vmStat2 := core.VMStat{}
     vmStat2.VMTicker()
 
     sysStat.VM.PgMajFault = vmStat2.PgMajFault - vmStat.PgMajFault 

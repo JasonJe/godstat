@@ -1,4 +1,4 @@
-package ipc 
+package core 
 
 import (
     "path"
