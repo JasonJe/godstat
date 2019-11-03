@@ -58,6 +58,7 @@ func IOTicker() ([]IOStat, error) {
             } 
         }
     }
+    ioList  = append(ioList, totalIOStat)
     return ioList, nil 
 }
 

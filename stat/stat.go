@@ -5,6 +5,7 @@ import (
     "os"
     "sync"
     "time"
+    "strconv"
     "runtime"
     "github.com/gosuri/uilive"
 
@@ -13,22 +14,23 @@ import (
 )
 
 type SysStat struct {
-    DateTime  utils.FormatTime     `json:"datetime"`
-    CpuArray  []core.CpuStat        `json:"cpuList"`
-    core.MemoryStat 
-    core.PageStat 
-    DiskList  []core.DiskStat      `json:"diskList"`
-    NetList   []core.NetStat        `json:"netList"`
-    core.LoadStat
-    SwapList  []core.SwapStat      `json:"swapList"`
-    core.SystemStat
+    DateTime   utils.FormatTime    `json:"datetime"`
+    Epoch      int64               `json:"epoch"`
+    CpuArray   []core.CpuStat      `json:"cpuList"`
+    Memory     core.MemoryStat 
+    Page       core.PageStat 
+    DiskList   []core.DiskStat     `json:"diskList"`
+    NetList    []core.NetStat      `json:"netList"`
+    LoadAvg    core.LoadStat
+    SwapList   []core.SwapStat     `json:"swapList"`
+    System     core.SystemStat
     Socket     core.SocketStat
     RawSocket  core.RawSocketStat
     UnixSocket core.UnixSocketStat 
     TCP        core.TCPStat 
     UDP        core.UDPStat
-    core.FileSystemStat
-    IOList  []core.IOStat            `json:"diskList"`
+    FileSystem core.FileSystemStat
+    IOList     []core.IOStat       `json:"ioList"`
     AIO        core.AIOStat
     Proc       core.ProcStat
     IPC        core.IPCStat
@@ -37,7 +39,7 @@ type SysStat struct {
     VM         core.VMStat 
 }
 
-func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getCpuUtilization(t int, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(time.Millisecond * time.Duration(t))
 	cpusStat, _ := core.CpuTicker()
 	<- ticker.C
@@ -92,13 +94,17 @@ func (sysStat *SysStat) CpuUtilization(t int, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (sysStat *SysStat) MemoryInfo(wg *sync.WaitGroup) {
-	sysStat.MemoryTicker()
+func (sysStat *SysStat) getMemory(wg *sync.WaitGroup) {
+	sysStat.Memory.MemoryTicker()
+	wg.Done()
+}
+
+func (sysStat *SysStat) getZones(wg *sync.WaitGroup) {
 	sysStat.Zone.ZoneTicker()
 	wg.Done()
 }
 
-func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getPaging(t int, wg *sync.WaitGroup) {
 	ticker    := time.NewTicker(time.Millisecond * time.Duration(t))
 	pageStat  := core.PageStat{}
 	pageStat.PageTicker()
@@ -106,13 +112,13 @@ func (sysStat *SysStat) Paging(t int, wg *sync.WaitGroup) {
 	pageStat2 := core.PageStat{}
 	pageStat2.PageTicker()
 
-	sysStat.PageIn  = (pageStat2.PageIn  - pageStat.PageIn)  * int64(os.Getpagesize()) * 1
-	sysStat.PageOut = (pageStat2.PageOut - pageStat.PageOut) * int64(os.Getpagesize()) * 1
+	sysStat.Page.PageIn  = (pageStat2.PageIn  - pageStat.PageIn)  * int64(os.Getpagesize()) * 1
+	sysStat.Page.PageOut = (pageStat2.PageOut - pageStat.PageOut) * int64(os.Getpagesize()) * 1
 
 	wg.Done()
 }
 
-func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getDisk(t int, wg *sync.WaitGroup) {
     ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
     diskList, err  := core.DiskTicker()
     if err != nil {
@@ -126,7 +132,7 @@ func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
 
     (*sysStat).DiskList = []core.DiskStat{}
     for index := 0; index < len(diskList); index ++ {
-        diskStat := core.DiskStat{}
+        diskStat      := core.DiskStat{}
         diskStat.Name  = diskList[index].Name
         diskStat.Read  = (diskList2[index].Read  - diskList[index].Read) * 512.0
         diskStat.Write = (diskList2[index].Write - diskList[index].Write) * 512.0
@@ -137,7 +143,7 @@ func (sysStat *SysStat) Disk(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
-func (sysStat *SysStat) Net(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getNet(t int, wg *sync.WaitGroup) {
     netDevices, _ := utils.NetDev()
 
     ticker        := time.NewTicker(time.Millisecond * time.Duration(t))
@@ -166,18 +172,18 @@ func (sysStat *SysStat) Net(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
-func (sysStat *SysStat) LoadAvg(wg *sync.WaitGroup) {
-    sysStat.LoadTicker()
+func (sysStat *SysStat) getLoadAvg(wg *sync.WaitGroup) {
+    sysStat.LoadAvg.LoadTicker()
     wg.Done()
 }
 
-func (sysStat *SysStat) Swap(wg *sync.WaitGroup) {
+func (sysStat *SysStat) getSwap(wg *sync.WaitGroup) {
     swapList, _ := core.SwapTicker()
     (*sysStat).SwapList = swapList
     wg.Done()
 }
 
-func (sysStat *SysStat) System(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getSystem(t int, wg *sync.WaitGroup) {
     ticker      := time.NewTicker(time.Millisecond * time.Duration(t))
     systemStat  := core.SystemStat{}
     systemStat.SystemTicker()
@@ -185,27 +191,43 @@ func (sysStat *SysStat) System(t int, wg *sync.WaitGroup) {
     systemStat2 := core.SystemStat{}
     systemStat2.SystemTicker()
 
-    sysStat.Interrupt     = systemStat2.Interrupt     - systemStat.Interrupt
-    sysStat.ContextSwitch = systemStat2.ContextSwitch - systemStat.ContextSwitch
+    sysStat.System.Interrupt     = systemStat2.Interrupt     - systemStat.Interrupt
+    sysStat.System.ContextSwitch = systemStat2.ContextSwitch - systemStat.ContextSwitch
 
     wg.Done()
 }
 
-func (sysStat *SysStat) AllSocket(wg *sync.WaitGroup) {
+func (sysStat *SysStat) getSocket(wg *sync.WaitGroup) {
     sysStat.Socket.SocketTicker()
-    sysStat.RawSocket.RawSocketTicker()
-    sysStat.UnixSocket.UnixSocketTicker() 
-    sysStat.TCP.TCPTicker()
-    sysStat.UDP.UDPTicker() 
-    wg.Done()
-} 
-
-func (sysStat *SysStat) FileSystem(wg *sync.WaitGroup) {
-    sysStat.FileSystemTicker()
     wg.Done()
 }
 
-func (sysStat *SysStat) IO(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getRawSocket(wg *sync.WaitGroup) {
+    sysStat.RawSocket.RawSocketTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) getUnixSocket(wg *sync.WaitGroup) {
+    sysStat.UnixSocket.UnixSocketTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) getTCPSocket(wg *sync.WaitGroup) {
+    sysStat.TCP.TCPTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) getUDPSocket(wg *sync.WaitGroup) {
+    sysStat.UDP.UDPTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) getFileSystem(wg *sync.WaitGroup) {
+    sysStat.FileSystem.FileSystemTicker()
+    wg.Done()
+}
+
+func (sysStat *SysStat) getIO(t int, wg *sync.WaitGroup) {
     ticker         := time.NewTicker(time.Millisecond * time.Duration(t))
     ioList, err  := core.IOTicker()
     if err != nil {
@@ -229,12 +251,12 @@ func (sysStat *SysStat) IO(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
-func (sysStat *SysStat) AIO_(wg *sync.WaitGroup) {
+func (sysStat *SysStat) getAIO(wg *sync.WaitGroup) {
     sysStat.AIO.AIOTicker()
     wg.Done()
 } 
 
-func (sysStat *SysStat) Proc_(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getProc(t int, wg *sync.WaitGroup) {
     ticker    := time.NewTicker(time.Millisecond * time.Duration(t))
     procStat  := core.ProcStat{}
     procStat.ProcTicker()
@@ -248,17 +270,17 @@ func (sysStat *SysStat) Proc_(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
-func (sysStat *SysStat) IPC_(wg *sync.WaitGroup) {
+func (sysStat *SysStat) getIPC(wg *sync.WaitGroup) {
     sysStat.IPC.IPCTicker()
     wg.Done()
 }
 
-func (sysStat *SysStat) LockInfo(wg *sync.WaitGroup) {
+func (sysStat *SysStat) getLock(wg *sync.WaitGroup) {
     sysStat.Lock.LockTicker()
     wg.Done()
 }
 
-func (sysStat *SysStat) VMInfo(t int, wg *sync.WaitGroup) {
+func (sysStat *SysStat) getVM(t int, wg *sync.WaitGroup) {
     ticker  := time.NewTicker(time.Millisecond * time.Duration(t))
     vmStat  := core.VMStat{}
     vmStat.VMTicker()
@@ -273,75 +295,296 @@ func (sysStat *SysStat) VMInfo(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
-func (sysStat *SysStat) Run(t int) {
-    writer        := uilive.New()
+
+func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []string, isPage, isLoad, isMem, isProc, isIO, isTime, isEpoch, isSys, isFS, isAIO, isIPC, isLock, isRAW, isSocket, isTCP, isUDP, isUnix, isVM, isZones bool) {
+
+    diskNames, err := utils.DiskDev()
+    if err != nil {
+        fmt.Println(err)
+    }
+    netNames,  err := utils.NetDev()
+    if err != nil {
+        fmt.Println(err)
+    }
+    swapNames, err := utils.SwapList()
+    if err != nil {
+        fmt.Println(err)
+    }
+
+    writer    := uilive.New()
     writer.Start()
 
-    // fmt.Printf("| --- datetime ---- | ---  cpu(%%) --- | --------- memory usage ---------- | --- paging ---- | - disk total -- | -- net total -- | ---- load avg ---- | ---- swap ----- | --- system ---- |\n")
-    // fmt.Printf("|           datetime| user|  sys| idel|    used|    free| buffers|  cached|      in|     out|      in|     out|    recv|    send| load| load5| load15|    used|    free|    intr|     csw|\n")
-
     for {
-        startT := time.Now()
+        // startT  := time.Now()
         var wg sync.WaitGroup
-        wg.Add(17)
+        wg.Add(22)
 
         go func(sysStat *SysStat, wg *sync.WaitGroup) {
             sysStat.DateTime = utils.FormatTime(time.Now())
             wg.Done()
         }(sysStat, &wg)
-        go sysStat.CpuUtilization(t, &wg)
-        go sysStat.MemoryInfo(&wg)
-        go sysStat.Paging(t, &wg)
-        go sysStat.Disk(t, &wg)
-        go sysStat.Net(t, &wg)
-        go sysStat.LoadAvg(&wg)
-        go sysStat.Swap(&wg)
-        go sysStat.System(t, &wg)
-        go sysStat.AllSocket(&wg)
-        go sysStat.FileSystem(&wg)
-        go sysStat.IO(t, &wg)
-        go sysStat.AIO_(&wg)
-        go sysStat.Proc_(t, &wg)
-        go sysStat.IPC_(&wg)
-        go sysStat.LockInfo(&wg)
-        go sysStat.VMInfo(t, &wg)
+        go func(sysStat *SysStat, wg *sync.WaitGroup) {
+            sysStat.Epoch = time.Now().Unix()
+            wg.Done()
+        }(sysStat, &wg)
+        go sysStat.getCpuUtilization(t, &wg)
+        go sysStat.getDisk(t, &wg)
+        go sysStat.getNet(t, &wg)
+        go sysStat.getSwap(&wg)
+        go sysStat.getPaging(t, &wg)
+        go sysStat.getLoadAvg(&wg)
+        go sysStat.getMemory(&wg)
+        go sysStat.getProc(t, &wg)
+        go sysStat.getIO(t, &wg)
+        go sysStat.getSystem(t, &wg)
+        go sysStat.getFileSystem(&wg)
+        go sysStat.getAIO(&wg)
+        go sysStat.getIPC(&wg)
+        go sysStat.getLock(&wg)
+        go sysStat.getRawSocket(&wg)
+        go sysStat.getSocket(&wg)
+        go sysStat.getTCPSocket(&wg)
+        go sysStat.getUDPSocket(&wg)
+        go sysStat.getUnixSocket(&wg)
+        go sysStat.getVM(t, &wg)
         wg.Wait()
 
-        // diskListLength := len((*sysStat).DiskList)
-        // netListLength  := len((*sysStat).NetList)
-        // swapListLength := len((*sysStat).SwapList)
-        tc := time.Since(startT)
-        // fmt.Fprintf(writer, "|%s|%5.2f|%5.2f|%5.2f|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%8s|%5.2f|%6.2f|%7.2f|%8s|%8s|%8s|%8s|\n",
-        //     time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05"),
-        //     (*sysStat).CpuArray[0].User, (*sysStat).CpuArray[0].System, (*sysStat).CpuArray[0].Idle,
-        //     utils.ByteCountSI(int64((*sysStat).Used)), utils.ByteCountSI(int64((*sysStat).Free)), utils.ByteCountSI(int64((*sysStat).Buffers)), utils.ByteCountSI(int64((*sysStat).Cached)),
-        //     utils.ByteCountSI((*sysStat).PageIn), utils.ByteCountSI((*sysStat).PageOut),
-        //     utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Read)), utils.ByteCountSI(int64((*sysStat).DiskList[diskListLength - 1].Write)),
-        //     utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Recv)), utils.ByteCountSI(int64((*sysStat).NetList[netListLength - 1].Send)),
-        //     (*sysStat).Load1, (*sysStat).Load5, (*sysStat).Load15,
-        //     utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Used)), utils.ByteCountSI(int64((*sysStat).SwapList[swapListLength - 1].Free)),
-        //     utils.ByteCountSI(int64(sysStat.Interrupt)), utils.ByteCountSI(int64(sysStat.ContextSwitch)))
-        // fmt.Fprintf(writer, "---------------------------------------------\n") 
-        // fmt.Fprintf(writer, "|%5d|%5d|%5d|%5d|%5d|%5d|\n", (*sysStat).Socket.Total, (*sysStat).Socket.TCP, (*sysStat).Socket.UDP, (*sysStat).Socket.RAW, (*sysStat).Socket.FRAG, (*sysStat).Socket.Other)
-        // fmt.Fprintf(writer, "---------------------------------------------\n") 
-        // fmt.Fprintf(writer, "|%5d|%5d|\n", (*sysStat).UsingFileHandle, (*sysStat).UsingInode)
-        // fmt.Fprintf(writer, "---------------------------------------------\n") 
-        // for _, ioDev := range (*sysStat).IOList {
-        //     fmt.Fprintf(writer, "|%8s|%5.2f|%5.2f|\n", ioDev.Name, ioDev.Read, ioDev.Write)
-        // }
-        // fmt.Fprintf(writer, "---------------------------------------------\n") 
-        // fmt.Fprintf(writer, "|%8d|\n", (*sysStat).AIO.Requests)
-        // fmt.Fprintf(writer, "---------------------------------------------\n")
-        // fmt.Fprintf(writer, "|%5f|%5f|%5f|\n", (*sysStat).Proc.Running, (*sysStat).Proc.Blocked, (*sysStat).Proc.Processes)
-        // fmt.Fprintf(writer, "---------------------------------------------\n")
-        // fmt.Fprintf(writer, "|%8d|%8d|%8d|\n", (*sysStat).IPC.MessageQueue, (*sysStat).IPC.Semaphore, (*sysStat).IPC.SharedMemory)
-        // fmt.Fprintf(writer, "---------------------------------------------\n")
-        // fmt.Fprintf(writer, "|%8s|%8s|%8s|%8s|\n", utils.ByteCountSI((*sysStat).Zone.DMA32Free), utils.ByteCountSI((*sysStat).Zone.DMA32High), utils.ByteCountSI((*sysStat).Zone.NormalFree), utils.ByteCountSI((*sysStat).Zone.NormalHigh))
-        // fmt.Fprintf(writer, "---------------------------------------------\n")
-        // fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).Lock.Posix, (*sysStat).Lock.Flock, (*sysStat).Lock.Read, (*sysStat).Lock.Write)
-        fmt.Fprintf(writer, "---------------------------------------------\n")
-        fmt.Fprintf(writer, "|%8d|%8d|%8d|%8d|\n", (*sysStat).VM.PgMajFault, (*sysStat).VM.PgFault, (*sysStat).VM.PgAlloc, (*sysStat).VM.PgFree)
-        fmt.Fprintf(writer, "time const = %v\n", tc) 
+        // tc := time.Since(startT)
+         
+        // cpu 
+        fmt.Fprintf(writer, "|%16s cpu usage %14s|\n", "", "")
+        fmt.Fprintf(writer, "|%6s|%6s|%6s|%6s|%6s|%6s|\n", "cpu", "user", "system", "idle", "iowait", "steal")
+        for _, cpuName := range cpuSlice {
+            var index int64
+            var err error
+            if cpuName == "total" {
+                index = 0
+            } else {
+                index, err = strconv.ParseInt(cpuName, 0, 64)
+                if err != nil {
+                    fmt.Fprintf(writer, "%s", err.Error())
+                }
+                index += 1
+            }
+            cpuStat := (*sysStat).CpuArray[index]
+            fmt.Fprintf(writer, "|%6s|%6.2f|%6.2f|%6.2f|%6.2f|%6.2f|\n", cpuStat.CPU, cpuStat.User, cpuStat.System, cpuStat.Idle, cpuStat.Iowait, cpuStat.Steal)
+        }
+
+        // memory
+        if isMem {
+            fmt.Fprintf(writer, "|%17s memory %16s|\n", "", "")
+            fmt.Fprintf(writer, "|%8s|%8s|%7s|%7s|%7s|\n", "used", "usedPCT", "free", "buffers", "cached")
+            fmt.Fprintf(writer, "|%8s|%7.2f%%|%7s|%7s|%7s|\n", utils.ByteCountSI(int64((*sysStat).Memory.Used)), (*sysStat).Memory.UsedPercent, utils.ByteCountSI(int64((*sysStat).Memory.Free)), utils.ByteCountSI(int64((*sysStat).Memory.Buffers)), utils.ByteCountSI(int64((*sysStat).Memory.Cached)))
+        }
+
+        // page
+        if isPage {
+            fmt.Fprintf(writer, "|%18s page %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%20s|%20s|\n", "pageIn", "pageOut")
+            fmt.Fprintf(writer, "|%20d|%20d|\n", (*sysStat).Page.PageIn, (*sysStat).Page.PageOut)
+        }
+
+        // disk
+        fmt.Fprintf(writer, "|%18s disk %17s|\n", "", "")
+        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "disk", "read", "write")
+        for _, diskName := range diskSlice {
+            var index int64 
+            if diskName == "total" {
+                index = int64(len((*sysStat).DiskList) - 1)
+            } else {
+                index = int64(utils.StringsContains(diskNames, diskName))
+            }
+            diskStat := (*sysStat).DiskList[index]
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", diskStat.Name, utils.ByteCountSI(int64(diskStat.Read)), utils.ByteCountSI(int64(diskStat.Write)))
+        }
+
+        // net 
+        fmt.Fprintf(writer, "|%18s net %18s|\n", "", "")
+        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "net", "recv", "send")
+        for _, netName := range netSlice {
+            var index int64 
+            if netName == "total" {
+                index = int64(len((*sysStat).NetList) - 1)
+            } else {
+                index = int64(utils.StringsContains(netNames, netName))
+            }
+            netStat := (*sysStat).NetList[index]
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", netStat.Name, utils.ByteCountSI(int64(netStat.Recv)), utils.ByteCountSI(int64(netStat.Send)))
+        }
+        
+        // loadavg 
+        if isLoad {
+            fmt.Fprintf(writer, "|%16s loadAvg %16s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "load1", "load5", "load15")
+            fmt.Fprintf(writer, "|%13.2f|%13.2f|%13.2f|\n", (*sysStat).LoadAvg.Load1, (*sysStat).LoadAvg.Load5, (*sysStat).LoadAvg.Load15)
+        }
+
+        // swap 
+        fmt.Fprintf(writer, "|%18s swap %17s|\n", "", "")
+        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "swap", "used", "free")
+        for _, swapName := range swapSlice {
+            var index int64 
+            if swapName == "total" {
+                index = int64(len((*sysStat).SwapList) - 1)
+            } else {
+                index = int64(utils.StringsContains(swapNames, swapName))
+            }
+            swapStat := (*sysStat).SwapList[index]
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", swapStat.Name, utils.ByteCountSI(int64(swapStat.Used)), utils.ByteCountSI(int64(swapStat.Free)))
+        }
+
+        // system 
+        if isSys {
+            fmt.Fprintf(writer, "|%17s system %16s|\n", "", "")
+            fmt.Fprintf(writer, "|%20s|%20s|\n", "interrupt", "contextSwitch")
+            fmt.Fprintf(writer, "|%20d|%20d|\n", int64((*sysStat).System.Interrupt), int64((*sysStat).System.ContextSwitch))        
+        }
+        
+        // socket 
+        if isSocket {
+            fmt.Fprintf(writer, "|%17s socket %16s|\n", "", "")
+            fmt.Fprintf(writer, "|%6s|%6s|%6s|%6s|%6s|%6s|\n", "total", "tcp", "udp", "raw", "frag", "other")
+            fmt.Fprintf(writer, "|%6d|%6d|%6d|%6d|%6d|%6d|\n", 
+                                int64((*sysStat).Socket.Total), 
+                                int64((*sysStat).Socket.TCP), 
+                                int64((*sysStat).Socket.UDP), 
+                                int64((*sysStat).Socket.RAW), 
+                                int64((*sysStat).Socket.FRAG),
+                                int64((*sysStat).Socket.Other))
+        }
+        // raw socket 
+        if isRAW {
+            fmt.Fprintf(writer, "|%15s raw socket %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%41s|\n", "rawSocket")
+            fmt.Fprintf(writer, "|%41d|\n", int64((*sysStat).RawSocket.NumSockets)) 
+        }
+
+        // unix socket
+        if isUnix {
+            fmt.Fprintf(writer, "|%14s unix socket %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%9s|%9s|%11s|%9s|\n", "dataGram", "stream", "established", "listen")
+            fmt.Fprintf(writer, "|%9d|%9d|%11d|%9d|\n", 
+                                int64((*sysStat).UnixSocket.DataGram),
+                                int64((*sysStat).UnixSocket.Stream),
+                                int64((*sysStat).UnixSocket.Established),
+                                int64((*sysStat).UnixSocket.Listen))
+        }
+
+        // tcp 
+        if isTCP {
+            fmt.Fprintf(writer, "|%15s tcp socket %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%6s|%11s|%6s|%8s|%6s|\n", "listen", "established", "syn", "timeWait", "close")
+            fmt.Fprintf(writer, "|%6d|%11d|%6d|%8d|%6d|\n", 
+                                int64((*sysStat).TCP.Listen),
+                                int64((*sysStat).TCP.Established),
+                                int64((*sysStat).TCP.SynSent) + int64((*sysStat).TCP.SynRecv) + int64((*sysStat).TCP.LastAck),
+                                int64((*sysStat).TCP.TimeWait),
+                                int64((*sysStat).TCP.FinWait1) + int64((*sysStat).TCP.FinWait2) + int64((*sysStat).TCP.Close) + int64((*sysStat).TCP.CloseWait) + int64((*sysStat).TCP.Closing))
+        }
+
+        // udp
+        if isUDP {
+            fmt.Fprintf(writer, "|%15s udp socket %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%20s|%20s|\n", "listen", "established")
+            fmt.Fprintf(writer, "|%20d|%20d|\n",
+                                int64((*sysStat).UDP.Listen),
+                                int64((*sysStat).UDP.Established))
+        }
+
+        // filesystem
+        if isFS {
+            fmt.Fprintf(writer, "|%15s filesystem %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%20s|%20s|\n", "usingFileHandle", "usingInode")
+            fmt.Fprintf(writer, "|%20d|%20d|\n",
+                                int64((*sysStat).FileSystem.UsingFileHandle),
+                                int64((*sysStat).FileSystem.UsingInode))
+        }
+
+        // io 
+        if isIO {
+            fmt.Fprintf(writer, "|%19s io %18s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "io", "read", "write")
+            for _, diskName := range diskSlice {
+                var index int64 
+                if diskName == "total" {
+                    index = int64(len((*sysStat).IOList) - 1)
+                } else {
+                    index = int64(utils.StringsContains(diskNames, diskName))
+                }
+                ioStat := (*sysStat).IOList[index]
+                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", ioStat.Name, utils.ByteCountSI(int64(ioStat.Read)), utils.ByteCountSI(int64(ioStat.Write)))
+            }
+        }
+
+        // aio
+        if isAIO {
+            fmt.Fprintf(writer, "|%18s aio %18s|\n", "", "")
+            fmt.Fprintf(writer, "|%41s|\n", "requests")
+            fmt.Fprintf(writer, "|%41d|\n", int64((*sysStat).AIO.Requests))
+        }
+
+
+        // proc
+        if isProc {
+            fmt.Fprintf(writer, "|%18s proc %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "running", "blocked", "processes")
+            fmt.Fprintf(writer, "|%13d|%13d|%13d|\n", 
+                        int64((*sysStat).Proc.Running),
+                        int64((*sysStat).Proc.Blocked),
+                        int64((*sysStat).Proc.Processes))
+        }
+
+        // ipc
+        if isIPC {
+            fmt.Fprintf(writer, "|%18s proc %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "messageQueue", "semaphore", "sharedMemory")
+            fmt.Fprintf(writer, "|%13d|%13d|%13d|\n", 
+                        int64((*sysStat).IPC.MessageQueue),
+                        int64((*sysStat).IPC.Semaphore),
+                        int64((*sysStat).IPC.SharedMemory))
+        }
+
+        // zones
+        if isZones {
+            fmt.Fprintf(writer, "|%17s zones %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%9s|%9s|%10s|%10s|\n", "dma2Free", "dma32High", "normalFree", "normalHigh")
+            fmt.Fprintf(writer, "|%9s|%9s|%10s|%10s|\n", 
+                        utils.ByteCountSI(int64((*sysStat).Zone.DMA32Free)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.DMA32High)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.NormalFree)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.NormalHigh)))
+        }
+
+        // lock
+        if isLock {
+            fmt.Fprintf(writer, "|%18s lock %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%10s|%10s|%9s|%9s|\n", "posix", "flock", "read", "write")
+            fmt.Fprintf(writer, "|%10s|%10s|%9s|%9s|\n", 
+                        utils.ByteCountSI(int64((*sysStat).Lock.Posix)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Flock)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Read)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Write)))
+        }
+
+        // vm
+        if isVM {
+            fmt.Fprintf(writer, "|%19s vm %18s|\n", "", "")
+            fmt.Fprintf(writer, "|%10s|%10s|%9s|%9s|\n", "pgMajFault", "pgFault", "pgAlloc", "pgFree")
+            fmt.Fprintf(writer, "|%10d|%10d|%9d|%9d|\n", 
+                        int64((*sysStat).VM.PgMajFault),
+                        int64((*sysStat).VM.PgFault),
+                        int64((*sysStat).VM.PgAlloc),
+                        int64((*sysStat).VM.PgFree))
+        }
+
+        if isEpoch {
+            fmt.Fprintf(writer, "|Epoch: %34d|\n", (*sysStat).Epoch)
+        }
+        
+        if isTime {
+            fmt.Fprintf(writer, "|DateTime: %31s|\n", time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05"))
+        }
+        // fmt.Fprintf(writer, "time const = %v\n", tc) 
     }
     writer.Stop()
 }
