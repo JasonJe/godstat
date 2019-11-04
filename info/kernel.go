@@ -1,6 +1,7 @@
 package info 
 
 import (
+    "fmt"
     "syscall"
 
     utils "godstat/utils"
@@ -23,4 +24,9 @@ func (kernelConfig *KernelConfig) GetConfig(args ...interface{}) error {
     kernelConfig.Release = release[0]
     kernelConfig.Version = version[0]
     return nil
+}
+
+func (kernelConfig *KernelConfig) GetInfoFmt() string {
+    kernelInfoFmt := fmt.Sprintf("Kernel Info:\n\tRelease: %s\n\tVersion: %s\n", kernelConfig.Release, kernelConfig.Version)
+    return kernelInfoFmt 
 }

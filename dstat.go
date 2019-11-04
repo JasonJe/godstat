@@ -7,6 +7,7 @@ import (
     flag "github.com/spf13/pflag"
 
 	stat "godstat/stat"
+    info "godstat/info"
 )
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
     //interPtr := flag.StringSliceP("int", "i", []string{""})
 
     helpPtr   := flag.BoolP("help",       "h", false, "help")
+    infoPtr   := flag.BoolP("info",       "i", false, "Show system information.")
     pagePtr   := flag.BoolP("page",       "g", true,  "Enable page stats.")
     loadPtr   := flag.BoolP("load",       "l", false, "Enable load stats.")
     memPtr    := flag.BoolP("mem",        "m", true,  "Enable memory stats.")
@@ -51,9 +53,14 @@ func main() {
         return 
     }
     
+    if *infoPtr {
+        for _, info := range info.GetInfoFmt() {
+            fmt.Printf(info)
+        }
+        return 
+    }
     // go run dstat.go --aio -c total -d total -t -f -r --ipc -l --lock -m -n total -g -p --raw --socket -s total -y --tcp -t --udp --unix --vm -- zones -T
-    sysStat := new(stat.SysStat)
-    
+    sysStat := new(stat.SysStat)    
     sysStat.Run(*delayPtr * 1000,
                 *cpuPtr,
                 *diskPtr,

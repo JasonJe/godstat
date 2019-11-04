@@ -1,6 +1,7 @@
 package info 
 
 import (
+    "fmt"
     "bytes"
     "syscall"
     "encoding/binary"    
@@ -115,4 +116,12 @@ func (memoryConfig *MemoryConfig) GetConfig(args ...interface{}) error {
         memoryConfig.Size = uint16(memSizeAlt)
     }
     return nil    
+}
+
+func (memoryConfig *MemoryConfig) GetInfoFmt() string {
+    memoryInfoFmt := fmt.Sprintf("Memory Info:\n\tSize: %s\n\tType: %s\n\tSpeed: %d\n", 
+                                utils.ByteCountSI(int64(memoryConfig.Size) * 1024 * 1024), 
+                                memoryConfig.Type, 
+                                memoryConfig.Speed)
+    return memoryInfoFmt 
 }

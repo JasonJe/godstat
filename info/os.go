@@ -2,6 +2,7 @@ package info
 
 import (
     "os"
+    "fmt"
     "unsafe"
     "syscall"
     "strings"
@@ -52,13 +53,13 @@ func (osConfig *OsConfig) GetConfig(args ...interface{}) error {
         fields := strings.Split(line, "=")
         switch fields[0] {
         case "NAME": 
-            osConfig.Name = fields[1]
+            osConfig.Name    = strings.Replace(fields[1], "\"", "", -1)
         case "ID":
-            osConfig.Vendor = fields[1]
+            osConfig.Vendor  = fields[1]
         case "VERSION_ID":
-            osConfig.Version = fields[1]
+            osConfig.Version = strings.Replace(fields[1], "\"", "", -1)
         case "PRETTY_NAME":
-            osConfig.Release = fields[1]
+            osConfig.Release = strings.Replace(fields[1], "\"", "", -1)
         }
     }
     
@@ -74,4 +75,16 @@ func (osConfig *OsConfig) GetConfig(args ...interface{}) error {
     }
     osConfig.TimeZone = strings.TrimSpace(string(timeZoneRead))
     return nil
+}
+
+func (osConfig *OsConfig) GetInfoFmt() string {
+    osInfoFmt := fmt.Sprintf("OS Info:\n\tName: %s\n\tVendor: %s\n\tVersion: %s\n\tRelease: %s\n\tArchitercture: %s\n\tHostName: %s\n\tTimeZone: %s\n", 
+                            osConfig.Name, 
+                            osConfig.Vendor, 
+                            osConfig.Version, 
+                            osConfig.Release, 
+                            osConfig.Architercture, 
+                            osConfig.HostName, 
+                            osConfig.TimeZone)
+    return osInfoFmt 
 }

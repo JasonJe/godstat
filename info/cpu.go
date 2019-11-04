@@ -77,3 +77,8 @@ func (cpuConfig *CpuConfig) GetConfig(args ...interface{}) error {
     }
     return nil 
 }
+
+func (cpuConfig *CpuConfig) GetInfoFmt() string {
+    cpuInfoFmt := fmt.Sprintf("CPU Info:\n\tModel: %s\n\tVendor: %s\n\tSpeed: %d\n\tCache: %s\n\tCPUs: %d\n\tCores: %d\n\tThreads: %d\n", cpuConfig.Model, cpuConfig.Vendor, cpuConfig.Speed, cpuConfig.Cache, cpuConfig.Cpus, cpuConfig.Cores, cpuConfig.Threads)
+    return cpuInfoFmt 
+}

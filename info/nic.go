@@ -235,5 +235,10 @@ func (nicConfig *NICConfig) GetConfig(args ...interface{}) error {
        
         return nil
     }
-    return errors.New("Unkown")
+    return errors.New("Parse nic link error.")
+}
+
+func (nicConfig *NICConfig) GetInfoFmt() string {
+    nicInfoFmt := fmt.Sprintf("\tName: %s\n\tDriver: %s\n\tMACAddress: %s\n\tPorts: %s\n\tSpeed: %d\n\tIP: %s\n", nicConfig.Name, nicConfig.Driver, nicConfig.MACAddress, nicConfig.Ports, nicConfig.Speed, nicConfig.IP)
+    return nicInfoFmt 
 }

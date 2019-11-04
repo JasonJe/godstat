@@ -2,6 +2,7 @@ package info
 
 import (
     "os"
+    "fmt"
     "path"
     "strconv"
     "errors"
@@ -70,7 +71,18 @@ func (stroageConfig *StroageConfig) GetConfig(args ...interface{}) error {
             }
             stroageConfig.Size = uint64(size) / 1953125 
         }
-        
+        return nil    
     }
-    return errors.New("Unknow")
+    return errors.New("Parse stroage link error.")
+}
+
+func (stroageConfig *StroageConfig) GetInfoFmt() string {
+    stroageInfoFmt := fmt.Sprintf("\tName: %s\n\tDriver: %s\n\tVendor: %s\n\tModel: %s\n\tSerial: %s\n\tSize: %d\n", 
+                                stroageConfig.Name, 
+                                stroageConfig.Driver, 
+                                stroageConfig.Vendor, 
+                                stroageConfig.Model, 
+                                stroageConfig.Serial, 
+                                stroageConfig.Size)
+    return stroageInfoFmt 
 }
