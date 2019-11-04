@@ -3,7 +3,7 @@ package main
 import (
     "os"
     "fmt"
-    
+
     flag "github.com/spf13/pflag"
 
 	stat "godstat/stat"
@@ -15,37 +15,43 @@ func main() {
         fmt.Fprintf(os.Stdout, "Usage of godstat: \n")
         flag.PrintDefaults()
     }
-    delayPtr := flag.Int("delay", 1, "Time delay.")
+    delayPtr := flag.Int("delay", 1, "time delay.")
 
-    cpuPtr   := flag.StringSliceP("cpu",  "c", []string{"total"}, "Enable cpu  stats. Example: 0,3,total")
-    diskPtr  := flag.StringSliceP("disk", "d", []string{"total"}, "Enable disk stats. Example: total,hda")
-    netPtr   := flag.StringSliceP("net",  "n", []string{"total"}, "Enable network stats. Example: eth1,total")
-    swapPtr  := flag.StringSliceP("swap", "s", []string{"total"}, "Enable swap stats. Example: swap1,total")
+    cpuSlicePtr  := flag.StringSliceP("cpuarray",  "C", []string{"total"}, "example: 0,3,total")
+    diskSlicePtr := flag.StringSliceP("diskarray", "D", []string{"total"}, "example: total,hda")
+    netSlicePtr  := flag.StringSliceP("netarray",  "N", []string{"total"}, "example: eth1,total")
+    swapSlicePtr := flag.StringSliceP("swaparray", "S", []string{"total"}, "example: swap1,total")
     //interPtr := flag.StringSliceP("int", "i", []string{""})
 
     helpPtr   := flag.BoolP("help",       "h", false, "help")
-    infoPtr   := flag.BoolP("info",       "i", false, "Show system information.")
-    pagePtr   := flag.BoolP("page",       "g", true,  "Enable page stats.")
-    loadPtr   := flag.BoolP("load",       "l", false, "Enable load stats.")
-    memPtr    := flag.BoolP("mem",        "m", true,  "Enable memory stats.")
-    procPtr   := flag.BoolP("proc",       "p", false, "Enable process stats.")
-    ioPtr     := flag.BoolP("io",         "r", false, "Enable io stats. (I/O requests completed)")
-    timePtr   := flag.BoolP("time",       "t", true,  "Enable time/date output.")
-    epochPtr  := flag.BoolP("epoch",      "T", false, "Enable time counter. (Seconds since epoch)")
-    sysPtr    := flag.BoolP("sys",        "y", true,  "Enable system stats.")
-    fsPtr     := flag.BoolP("filesystem", "f", false, "Enable filesystem stats.")
+    infoPtr   := flag.BoolP("info",       "i", false, "show system information.")
     
-    aioPtr    := flag.Bool("aio",    false, "Enable aio stats.")
-    ipcPtr    := flag.Bool("ipc",    false, "Enable ipc stats.")
-    lockPtr   := flag.Bool("lock",   false, "Enable lock stats.")
-    rawPtr    := flag.Bool("raw",    false, "Enable raw stats.")
-    socketPtr := flag.Bool("socket", false, "Enable socket stats.")
-    tcpPtr    := flag.Bool("tcp",    false, "Enable tcp stats.")
-    udpPtr    := flag.Bool("udp",    false, "Enable udp stats.")
-    unixPtr   := flag.Bool("unix",   false, "Enable unix stats.")
-    vmPtr     := flag.Bool("vm",     false, "Enable vm stats.")
-    zonesPtr  := flag.Bool("zones",  false, "Enable zoneinfo stats.")
+    cpuPtr    := flag.BoolP("cpu",        "c", false, "enable cpu stats.")
+    diskPtr   := flag.BoolP("disk",       "d", false, "enable disk stats.")
+    netPtr    := flag.BoolP("net",        "n", false, "enable net stats.")
+    swapPtr   := flag.BoolP("swap",       "s", false, "enable swap stats.")
+    pagePtr   := flag.BoolP("page",       "g", false, "enable page stats.")
+    loadPtr   := flag.BoolP("load",       "l", false, "enable load stats.")
+    memPtr    := flag.BoolP("mem",        "m", false, "enable memory stats.")
+    procPtr   := flag.BoolP("proc",       "p", false, "enable process stats.")
+    ioPtr     := flag.BoolP("io",         "r", false, "enable io stats. \n\t(I/O requests completed)")
+    sysPtr    := flag.BoolP("sys",        "y", false, "enable system stats.")
+    fsPtr     := flag.BoolP("filesystem", "f", false, "enable filesystem stats.")
+    timePtr   := flag.BoolP("time",       "t", false, "enable time/date output.")
+    epochPtr  := flag.BoolP("epoch",      "T", false, "enable time counter. (Seconds since epoch)")
+
     
+    aioPtr    := flag.Bool("aio",    false, "enable aio stats.")
+    ipcPtr    := flag.Bool("ipc",    false, "enable ipc stats.")
+    lockPtr   := flag.Bool("lock",   false, "enable lock stats.")
+    rawPtr    := flag.Bool("raw",    false, "enable raw  stats.")
+    socketPtr := flag.Bool("socket", false, "enable socket stats.")
+    tcpPtr    := flag.Bool("tcp",    false, "enable tcp stats.")
+    udpPtr    := flag.Bool("udp",    false, "enable udp stats.")
+    unixPtr   := flag.Bool("unix",   false, "enable unix stats.")
+    vmPtr     := flag.Bool("vm",     false, "enable vm stats.")
+    zonesPtr  := flag.Bool("zones",  false, "enable zoneinfo stats.")
+     
     flag.Parse()
     
     if *helpPtr {
@@ -59,30 +65,92 @@ func main() {
         }
         return 
     }
+    
     // go run dstat.go --aio -c total -d total -t -f -r --ipc -l --lock -m -n total -g -p --raw --socket -s total -y --tcp -t --udp --unix --vm -- zones -T
-    sysStat := new(stat.SysStat)    
-    sysStat.Run(*delayPtr * 1000,
-                *cpuPtr,
-                *diskPtr,
-                *netPtr,
-                *swapPtr,
-                *pagePtr,
-                *loadPtr,
-                *memPtr,
-                *procPtr,
-                *ioPtr,
-                *timePtr,
-                *epochPtr,
-                *sysPtr,
-                *fsPtr,
-                *aioPtr,
-                *ipcPtr,
-                *lockPtr,
-                *rawPtr,
-                *socketPtr,
-                *tcpPtr,
-                *udpPtr,
-                *unixPtr,
-                *vmPtr,
-                *zonesPtr)
+    sysStat := new(stat.SysStat)
+    if *cpuPtr    ||  
+       *diskPtr   || 
+       *netPtr    || 
+       *swapPtr   || 
+       *pagePtr   || 
+       *loadPtr   || 
+       *memPtr    || 
+       *procPtr   || 
+       *ioPtr     || 
+       *sysPtr    || 
+       *fsPtr     || 
+       *timePtr   || 
+       *epochPtr  || 
+       *aioPtr    || 
+       *ipcPtr    || 
+       *lockPtr   || 
+       *rawPtr    || 
+       *socketPtr || 
+       *tcpPtr    || 
+       *udpPtr    || 
+       *unixPtr   || 
+       *vmPtr     || 
+       *zonesPtr  {
+        if !*cpuPtr {
+            *cpuSlicePtr  = []string{}
+        }
+        if !*diskPtr {
+            *diskSlicePtr = []string{} 
+        }
+        if !*netPtr {
+            *netSlicePtr  = []string{}
+        }
+        if !*swapPtr {
+            *swapSlicePtr = []string{}
+        }
+        sysStat.Run(*delayPtr * 1000,
+                    *cpuSlicePtr,
+                    *diskSlicePtr,
+                    *netSlicePtr,
+                    *swapSlicePtr,
+                    *pagePtr,
+                    *loadPtr,
+                    *memPtr,
+                    *procPtr,
+                    *ioPtr,
+                    *timePtr,
+                    *epochPtr,
+                    *sysPtr,
+                    *fsPtr,
+                    *aioPtr,
+                    *ipcPtr,
+                    *lockPtr,
+                    *rawPtr,
+                    *socketPtr,
+                    *tcpPtr,
+                    *udpPtr,
+                    *unixPtr,
+                    *vmPtr,
+                    *zonesPtr)
+   } else {
+        sysStat.Run(1 * 1000,
+                    []string{"total"},
+                    []string{"total"},
+                    []string{"total"},
+                    []string{"total"},
+                    true,
+                    *loadPtr,
+                    true,
+                    *procPtr,
+                    *ioPtr,
+                    true,
+                    *epochPtr,
+                    *sysPtr,
+                    *fsPtr,
+                    *aioPtr,
+                    *ipcPtr,
+                    *lockPtr,
+                    *rawPtr,
+                    *socketPtr,
+                    *tcpPtr,
+                    *udpPtr,
+                    *unixPtr,
+                    *vmPtr,
+                    *zonesPtr)
+   }
 }

@@ -351,23 +351,25 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
 
         // tc := time.Since(startT)
          
-        // cpu 
-        fmt.Fprintf(writer, "|%16s cpu usage %14s|\n", "", "")
-        fmt.Fprintf(writer, "|%6s|%6s|%6s|%6s|%6s|%6s|\n", "cpu", "user", "system", "idle", "iowait", "steal")
-        for _, cpuName := range cpuSlice {
-            var index int64
-            var err error
-            if cpuName == "total" {
-                index = 0
-            } else {
-                index, err = strconv.ParseInt(cpuName, 0, 64)
-                if err != nil {
-                    fmt.Fprintf(writer, "%s", err.Error())
+        // cpu
+        if len(cpuSlice) != 0 {
+            fmt.Fprintf(writer, "|%16s cpu usage %14s|\n", "", "")
+            fmt.Fprintf(writer, "|%6s|%6s|%6s|%6s|%6s|%6s|\n", "cpu", "user", "system", "idle", "iowait", "steal")
+            for _, cpuName := range cpuSlice {
+                var index int64
+                var err error
+                if cpuName == "total" {
+                    index = 0
+                } else {
+                    index, err = strconv.ParseInt(cpuName, 0, 64)
+                    if err != nil {
+                        fmt.Fprintf(writer, "%s", err.Error())
+                    }
+                    index += 1
                 }
-                index += 1
+                cpuStat := (*sysStat).CpuArray[index]
+                fmt.Fprintf(writer, "|%6s|%6.2f|%6.2f|%6.2f|%6.2f|%6.2f|\n", cpuStat.CPU, cpuStat.User, cpuStat.System, cpuStat.Idle, cpuStat.Iowait, cpuStat.Steal)
             }
-            cpuStat := (*sysStat).CpuArray[index]
-            fmt.Fprintf(writer, "|%6s|%6.2f|%6.2f|%6.2f|%6.2f|%6.2f|\n", cpuStat.CPU, cpuStat.User, cpuStat.System, cpuStat.Idle, cpuStat.Iowait, cpuStat.Steal)
         }
 
         // memory
@@ -385,33 +387,37 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
         }
 
         // disk
-        fmt.Fprintf(writer, "|%18s disk %17s|\n", "", "")
-        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "disk", "read", "write")
-        for _, diskName := range diskSlice {
-            var index int64 
-            if diskName == "total" {
-                index = int64(len((*sysStat).DiskList) - 1)
-            } else {
-                index = int64(utils.StringsContains(diskNames, diskName))
+        if len(diskSlice) != 0 {
+            fmt.Fprintf(writer, "|%18s disk %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "disk", "read", "write")
+            for _, diskName := range diskSlice {
+                var index int64 
+                if diskName == "total" {
+                    index = int64(len((*sysStat).DiskList) - 1)
+                } else {
+                    index = int64(utils.StringsContains(diskNames, diskName))
+                }
+                diskStat := (*sysStat).DiskList[index]
+                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", diskStat.Name, utils.ByteCountSI(int64(diskStat.Read)), utils.ByteCountSI(int64(diskStat.Write)))
             }
-            diskStat := (*sysStat).DiskList[index]
-            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", diskStat.Name, utils.ByteCountSI(int64(diskStat.Read)), utils.ByteCountSI(int64(diskStat.Write)))
         }
-
-        // net 
-        fmt.Fprintf(writer, "|%18s net %18s|\n", "", "")
-        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "net", "recv", "send")
-        for _, netName := range netSlice {
-            var index int64 
-            if netName == "total" {
-                index = int64(len((*sysStat).NetList) - 1)
-            } else {
-                index = int64(utils.StringsContains(netNames, netName))
+       
+        // net
+        if len(netSlice) != 0 {
+            fmt.Fprintf(writer, "|%18s net %18s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "net", "recv", "send")
+            for _, netName := range netSlice {
+                var index int64 
+                if netName == "total" {
+                    index = int64(len((*sysStat).NetList) - 1)
+                } else {
+                    index = int64(utils.StringsContains(netNames, netName))
+                }
+                netStat := (*sysStat).NetList[index]
+                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", netStat.Name, utils.ByteCountSI(int64(netStat.Recv)), utils.ByteCountSI(int64(netStat.Send)))
             }
-            netStat := (*sysStat).NetList[index]
-            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", netStat.Name, utils.ByteCountSI(int64(netStat.Recv)), utils.ByteCountSI(int64(netStat.Send)))
         }
-        
+       
         // loadavg 
         if isLoad {
             fmt.Fprintf(writer, "|%16s loadAvg %16s|\n", "", "")
@@ -420,19 +426,20 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
         }
 
         // swap 
-        fmt.Fprintf(writer, "|%18s swap %17s|\n", "", "")
-        fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "swap", "used", "free")
-        for _, swapName := range swapSlice {
-            var index int64 
-            if swapName == "total" {
-                index = int64(len((*sysStat).SwapList) - 1)
-            } else {
-                index = int64(utils.StringsContains(swapNames, swapName))
+        if len(swapSlice) != 0 {
+            fmt.Fprintf(writer, "|%18s swap %17s|\n", "", "")
+            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "swap", "used", "free")
+            for _, swapName := range swapSlice {
+                var index int64 
+                if swapName == "total" {
+                    index = int64(len((*sysStat).SwapList) - 1)
+                } else {
+                    index = int64(utils.StringsContains(swapNames, swapName))
+                }
+                swapStat := (*sysStat).SwapList[index]
+                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", swapStat.Name, utils.ByteCountSI(int64(swapStat.Used)), utils.ByteCountSI(int64(swapStat.Free)))
             }
-            swapStat := (*sysStat).SwapList[index]
-            fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", swapStat.Name, utils.ByteCountSI(int64(swapStat.Used)), utils.ByteCountSI(int64(swapStat.Free)))
         }
-
         // system 
         if isSys {
             fmt.Fprintf(writer, "|%17s system %16s|\n", "", "")
