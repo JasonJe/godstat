@@ -9,8 +9,8 @@ import (
     "runtime"
     "github.com/gosuri/uilive"
 
-    utils      "godstat/utils"
-    core       "godstat/core"
+    utils "godstat/utils"
+    core  "godstat/core"
 )
 
 type SysStat struct {

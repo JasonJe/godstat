@@ -17,6 +17,8 @@ type MemoryStat struct {
 	Available    float64  `json:"available"`
 	Used         float64  `json:"used"`
 	UsedPercent  float64  `json:"usedPercent"`
+    SReclaimable float64  `json:"sReclaimable"`
+    Shmem        float64  `json:"shmem"`
 }
 
 func (memoryStat *MemoryStat) MemoryTicker() error {
@@ -43,22 +45,26 @@ func (memoryStat *MemoryStat) MemoryTicker() error {
 
 		switch key {
 		case "MemTotal":
-			memoryStat.Total = t * 1024.0
+			memoryStat.Total        = t * 1024.0
 		case "MemFree":
-			memoryStat.Free = t * 1024.0
+			memoryStat.Free         = t * 1024.0
 		case "Buffers":
-			memoryStat.Buffers = t * 1024.0
+			memoryStat.Buffers      = t * 1024.0
 		case "Cached":
-			memoryStat.Cached = t * 1024.0
+			memoryStat.Cached       = t * 1024.0
 		case "Active":
-			memoryStat.Active = t * 1024.0
+			memoryStat.Active       = t * 1024.0
 		case "Inactive":
-			memoryStat.Inactive = t * 1024.0
+			memoryStat.Inactive     = t * 1024.0
+		case "SReclaimable":
+		    memoryStat.SReclaimable = t * 1024.0
+		case "Shmem":
+		    memoryStat.Shmem        = t * 1024.0
 		}
 
 	}
-	memoryStat.Available = memoryStat.Free + memoryStat.Buffers + memoryStat.Cached
-	memoryStat.Used = memoryStat.Total - memoryStat.Free
-	memoryStat.UsedPercent = float64(memoryStat.Total-memoryStat.Available) / float64(memoryStat.Total) * 100.0
+	memoryStat.Available   = memoryStat.Free + memoryStat.Buffers + memoryStat.Cached
+	memoryStat.Used        = memoryStat.Total - memoryStat.Free - memoryStat.Buffers - memoryStat.Cached - memoryStat.SReclaimable - memoryStat.Shmem
+	memoryStat.UsedPercent = memoryStat.Used / memoryStat.Total * 100.0
 	return nil
 }
