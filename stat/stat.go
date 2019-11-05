@@ -5,8 +5,12 @@ import (
     "os"
     "sync"
     "time"
+    "path"
     "strconv"
+    "strings"
     "runtime"
+    "encoding/csv"
+
     "github.com/gosuri/uilive"
 
     utils "godstat/utils"
@@ -295,8 +299,55 @@ func (sysStat *SysStat) getVM(t int, wg *sync.WaitGroup) {
     wg.Done()
 }
 
+// 1) out 2) out.csv 3) out.csv.0 4) out.csv.123 5) 123
+func getNewFileName(fileName, filePath string) string {
+    var newName string 
+    tempSlice := strings.Split(fileName, ".")
+    extName    := tempSlice[len(tempSlice) - 1]
+    digit, err := strconv.ParseInt(extName, 10, 64)
+    if err == nil {
+        digit  += 1
+        newNameSlice := tempSlice[:]
+        newNameSlice[len(newNameSlice) - 1] = strconv.FormatInt(digit, 10)
+        newName = strings.Join(newNameSlice, ".")
+    } else {
+        digit   = 0
+        newName = fileName + "." + strconv.FormatInt(digit, 10)
+    }
+    _, err = os.Stat(path.Join(filePath, newName))
+    if err == nil {
+        return getNewFileName(newName, filePath)
+    }
+    return newName
+}
 
-func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []string, isPage, isLoad, isMem, isProc, isIO, isTime, isEpoch, isSys, isFS, isAIO, isIPC, isLock, isRAW, isSocket, isTCP, isUDP, isUnix, isVM, isZones bool) {
+func (sysStat *SysStat) Run(t int, 
+                            cpuSlice,
+                            diskSlice,
+                            netSlice, 
+                            swapSlice []string, 
+                            isPage, 
+                            isLoad, 
+                            isMem, 
+                            isProc, 
+                            isIO, 
+                            isTime, 
+                            isEpoch, 
+                            isSys, 
+                            isFS, 
+                            isAIO, 
+                            isIPC, 
+                            isLock, 
+                            isRAW, 
+                            isSocket, 
+                            isTCP, 
+                            isUDP, 
+                            isUnix, 
+                            isVM, 
+                            isZones bool,
+                            outCSVPath string) { 
+    var csvWriter  *csv.Writer
+    var csvTitle   []string 
 
     diskNames, err := utils.DiskDev()
     if err != nil {
@@ -313,9 +364,75 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
 
     writer    := uilive.New()
     writer.Start()
+    
+    if outCSVPath != "" {
+        // 1) out.csv 2) ./out.csv 3) /tmp/out.csv 4) /tmp/test/out.csv (/tmp/test is not exist.)
+        outCSVPathSplit := strings.Split(outCSVPath, "/")
+        outCSVFileName  := outCSVPathSplit[len(outCSVPathSplit) - 1]
+        outCSVDir       := strings.Replace(outCSVPath, outCSVFileName, "", -1) // "", "./", "/tmp/test"
+        
+        if outCSVDir != "" {
+            _, err := os.Stat(outCSVDir)
+            if err != nil {
+                if os.IsExist(err) {
+                    fmt.Println(os.IsExist(err))
+                }
+                err = os.MkdirAll(outCSVDir, os.ModePerm)
+                if err != nil {
+                    fmt.Println(err)
+                }
+            }
+        } else {
+            outCSVDir = "./"
+        }
+        _, err := os.Stat(outCSVPath)
+        if err == nil {
+            // if old file exist, rename it.
+            newFileName := getNewFileName(outCSVFileName, outCSVDir)
+            os.Rename(path.Join(outCSVDir, outCSVFileName), path.Join(outCSVDir, newFileName))
+            fmt.Printf("rename exist file: %s --> %s.\n", path.Join(outCSVDir, outCSVFileName), 
+                                                          path.Join(outCSVDir, newFileName))
+        }
+        fmt.Printf("out csv file: %s\n", outCSVPath)
+        csvF, err := os.Create(outCSVPath)
+        if err != nil {
+            fmt.Println(err)            
+        }
+        defer csvF.Close()
+        csvWriter = csv.NewWriter(csvF)
+
+        if len(cpuSlice) !=0  {for _, _ = range cpuSlice   {csvTitle = append(csvTitle, []string{"cpu", "user", "system", "idle", "iowait", "steal"}...)}}
+        if isMem              {csvTitle = append(csvTitle, []string{"used(memory)", "usedPCT(memory)", "free(memory)", "buffers(memory)", "cached(memory)"}...)}
+        if isPage             {csvTitle = append(csvTitle, []string{"pageIn", "pageOut"}...)}
+        if len(diskSlice)!=0  {for _, _ = range diskSlice  {csvTitle = append(csvTitle, []string{"diskName(disk)", "read(disk)", "write(disk)"}...)}}
+        if len(netSlice) !=0  {for _, _ = range netSlice   {csvTitle = append(csvTitle, []string{"net", "recv", "send"}...)}}
+        if isLoad             {csvTitle = append(csvTitle, []string{"load1", "load5", "load15"}...)}
+        if len(swapSlice)!=0  {for _, _ = range swapSlice  {csvTitle = append(csvTitle, []string{"swap", "used", "free"}...)}}
+        if isSys              {csvTitle = append(csvTitle, []string{"interrupt", "contextSwitch"}...)}
+        if isSocket           {csvTitle = append(csvTitle, []string{"total(socket)", "tcp", "udp", "raw", "frag", "other"}...)}
+        if isRAW              {csvTitle = append(csvTitle, []string{"rawSocket"}...)}
+        if isUnix             {csvTitle = append(csvTitle, []string{"dataGram(unix)", "stream(unix)", "established(unix)", "listen(unix)"}...)}
+        if isTCP              {csvTitle = append(csvTitle, []string{"listen(tcp)", "established(tcp)", "syn(tcp)", "timeWait(tcp)", "close(tcp)"}...)}
+        if isUDP              {csvTitle = append(csvTitle, []string{"listen(udp)", "established(udp)"}...)}
+        if isFS               {csvTitle = append(csvTitle, []string{"usingFileHandle", "usingInode"}...)}
+        if isIO               {for _, _ = range diskSlice  {csvTitle = append(csvTitle, []string{"diskName(io)", "read(io)", "write(io)"}...)}}
+        if isAIO              {csvTitle = append(csvTitle, []string{"requests"}...)}
+        if isProc             {csvTitle = append(csvTitle, []string{"running", "blocked", "processes"}...)}
+        if isIPC              {csvTitle = append(csvTitle, []string{"messageQueue", "semaphore", "sharedMemory"}...)}
+        if isZones            {csvTitle = append(csvTitle, []string{"dma2Free", "dma32High", "normalFree", "normalHigh"}...)}
+        if isLock             {csvTitle = append(csvTitle, []string{"posix", "flock", "read", "write"}...)}
+        if isVM               {csvTitle = append(csvTitle, []string{"pgMajFault", "pgFault", "pgAlloc", "pgFree"}...)}
+        if isEpoch            {csvTitle = append(csvTitle, []string{"epoch"}...)}
+
+        csvTitle = append(csvTitle, []string{"datetime"}...)
+        
+        csvWriter.Write(csvTitle)
+        csvWriter.Flush()
+    }
 
     for {
         // startT  := time.Now()
+        var csvData []string
         var wg sync.WaitGroup
         wg.Add(22)
 
@@ -369,7 +486,12 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                 }
                 cpuStat := (*sysStat).CpuArray[index]
                 fmt.Fprintf(writer, "|%6s|%6.2f|%6.2f|%6.2f|%6.2f|%6.2f|\n", cpuStat.CPU, cpuStat.User, cpuStat.System, cpuStat.Idle, cpuStat.Iowait, cpuStat.Steal)
-            }
+                
+                if outCSVPath != "" {
+                    //csvTitle = append(csvTitle, []string{"cpu", "user", "system", "idle", "iowait", "steal"}...)
+                    csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%f,%f,%f,%f,%f", cpuStat.CPU, cpuStat.User, cpuStat.System, cpuStat.Idle, cpuStat.Iowait, cpuStat.Steal), ",")...)
+                }
+            } 
         }
 
         // memory
@@ -377,6 +499,9 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%17s memory %16s|\n", "", "")
             fmt.Fprintf(writer, "|%8s|%8s|%7s|%7s|%7s|\n", "used", "usedPCT", "free", "buffers", "cached")
             fmt.Fprintf(writer, "|%8s|%7.2f%%|%7s|%7s|%7s|\n", utils.ByteCountSI(int64((*sysStat).Memory.Used)), (*sysStat).Memory.UsedPercent, utils.ByteCountSI(int64((*sysStat).Memory.Free)), utils.ByteCountSI(int64((*sysStat).Memory.Buffers)), utils.ByteCountSI(int64((*sysStat).Memory.Cached)))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%f,%s,%s,%s", utils.ByteCountSI(int64((*sysStat).Memory.Used)), (*sysStat).Memory.UsedPercent, utils.ByteCountSI(int64((*sysStat).Memory.Free)), utils.ByteCountSI(int64((*sysStat).Memory.Buffers)), utils.ByteCountSI(int64((*sysStat).Memory.Cached))), ",")...)
+            }
         }
 
         // page
@@ -384,6 +509,9 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%18s page %17s|\n", "", "")
             fmt.Fprintf(writer, "|%20s|%20s|\n", "pageIn", "pageOut")
             fmt.Fprintf(writer, "|%20d|%20d|\n", (*sysStat).Page.PageIn, (*sysStat).Page.PageOut)
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d", (*sysStat).Page.PageIn, (*sysStat).Page.PageOut), ",")...)
+            }
         }
 
         // disk
@@ -399,6 +527,9 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                 }
                 diskStat := (*sysStat).DiskList[index]
                 fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", diskStat.Name, utils.ByteCountSI(int64(diskStat.Read)), utils.ByteCountSI(int64(diskStat.Write)))
+                if outCSVPath != "" {
+                    csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s", diskStat.Name, utils.ByteCountSI(int64(diskStat.Read)), utils.ByteCountSI(int64(diskStat.Write))), ",")...)
+                }
             }
         }
        
@@ -415,6 +546,9 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                 }
                 netStat := (*sysStat).NetList[index]
                 fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", netStat.Name, utils.ByteCountSI(int64(netStat.Recv)), utils.ByteCountSI(int64(netStat.Send)))
+                if outCSVPath != "" {
+                    csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s", netStat.Name, utils.ByteCountSI(int64(netStat.Recv)), utils.ByteCountSI(int64(netStat.Send))), ",")...)
+                }
             }
         }
        
@@ -423,6 +557,9 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%16s loadAvg %16s|\n", "", "")
             fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", "load1", "load5", "load15")
             fmt.Fprintf(writer, "|%13.2f|%13.2f|%13.2f|\n", (*sysStat).LoadAvg.Load1, (*sysStat).LoadAvg.Load5, (*sysStat).LoadAvg.Load15)
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%f,%f,%f", (*sysStat).LoadAvg.Load1, (*sysStat).LoadAvg.Load5, (*sysStat).LoadAvg.Load15), ",")...)
+            }
         }
 
         // swap 
@@ -438,13 +575,19 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                 }
                 swapStat := (*sysStat).SwapList[index]
                 fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", swapStat.Name, utils.ByteCountSI(int64(swapStat.Used)), utils.ByteCountSI(int64(swapStat.Free)))
+                if outCSVPath != "" {
+                    csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s", swapStat.Name, utils.ByteCountSI(int64(swapStat.Used)), utils.ByteCountSI(int64(swapStat.Free))), ",")...)
+                }
             }
         }
         // system 
         if isSys {
             fmt.Fprintf(writer, "|%17s system %16s|\n", "", "")
             fmt.Fprintf(writer, "|%20s|%20s|\n", "interrupt", "contextSwitch")
-            fmt.Fprintf(writer, "|%20d|%20d|\n", int64((*sysStat).System.Interrupt), int64((*sysStat).System.ContextSwitch))        
+            fmt.Fprintf(writer, "|%20d|%20d|\n", int64((*sysStat).System.Interrupt), int64((*sysStat).System.ContextSwitch))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d", int64((*sysStat).System.Interrupt), int64((*sysStat).System.ContextSwitch)), ",")...)
+            }
         }
         
         // socket 
@@ -458,12 +601,25 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                                 int64((*sysStat).Socket.RAW), 
                                 int64((*sysStat).Socket.FRAG),
                                 int64((*sysStat).Socket.Other))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d,%d,%d,%d",
+                                int64((*sysStat).Socket.Total), 
+                                int64((*sysStat).Socket.TCP), 
+                                int64((*sysStat).Socket.UDP), 
+                                int64((*sysStat).Socket.RAW), 
+                                int64((*sysStat).Socket.FRAG),
+                                int64((*sysStat).Socket.Other)), ",")...)
+            }
         }
+
         // raw socket 
         if isRAW {
             fmt.Fprintf(writer, "|%15s raw socket %14s|\n", "", "")
             fmt.Fprintf(writer, "|%41s|\n", "rawSocket")
-            fmt.Fprintf(writer, "|%41d|\n", int64((*sysStat).RawSocket.NumSockets)) 
+            fmt.Fprintf(writer, "|%41d|\n", int64((*sysStat).RawSocket.NumSockets))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d",int64((*sysStat).RawSocket.NumSockets)), ",")...)
+            }
         }
 
         // unix socket
@@ -475,6 +631,13 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                                 int64((*sysStat).UnixSocket.Stream),
                                 int64((*sysStat).UnixSocket.Established),
                                 int64((*sysStat).UnixSocket.Listen))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d,%d",
+                                int64((*sysStat).UnixSocket.DataGram),
+                                int64((*sysStat).UnixSocket.Stream),
+                                int64((*sysStat).UnixSocket.Established),
+                                int64((*sysStat).UnixSocket.Listen)), ",")...)
+            }
         }
 
         // tcp 
@@ -487,6 +650,14 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                                 int64((*sysStat).TCP.SynSent) + int64((*sysStat).TCP.SynRecv) + int64((*sysStat).TCP.LastAck),
                                 int64((*sysStat).TCP.TimeWait),
                                 int64((*sysStat).TCP.FinWait1) + int64((*sysStat).TCP.FinWait2) + int64((*sysStat).TCP.Close) + int64((*sysStat).TCP.CloseWait) + int64((*sysStat).TCP.Closing))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d,%d,%d",
+                                int64((*sysStat).TCP.Listen),
+                                int64((*sysStat).TCP.Established),
+                                int64((*sysStat).TCP.SynSent) + int64((*sysStat).TCP.SynRecv) + int64((*sysStat).TCP.LastAck),
+                                int64((*sysStat).TCP.TimeWait),
+                                int64((*sysStat).TCP.FinWait1) + int64((*sysStat).TCP.FinWait2) + int64((*sysStat).TCP.Close) + int64((*sysStat).TCP.CloseWait) + int64((*sysStat).TCP.Closing)), ",")...)
+            }
         }
 
         // udp
@@ -496,6 +667,11 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%20d|%20d|\n",
                                 int64((*sysStat).UDP.Listen),
                                 int64((*sysStat).UDP.Established))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d",
+                                int64((*sysStat).UDP.Listen),
+                                int64((*sysStat).UDP.Established)), ",")...)
+            }
         }
 
         // filesystem
@@ -505,6 +681,11 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%20d|%20d|\n",
                                 int64((*sysStat).FileSystem.UsingFileHandle),
                                 int64((*sysStat).FileSystem.UsingInode))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d",
+                                int64((*sysStat).FileSystem.UsingFileHandle),
+                                int64((*sysStat).FileSystem.UsingInode)), ",")...)
+            }
         }
 
         // io 
@@ -519,7 +700,16 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                     index = int64(utils.StringsContains(diskNames, diskName))
                 }
                 ioStat := (*sysStat).IOList[index]
-                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", ioStat.Name, utils.ByteCountSI(int64(ioStat.Read)), utils.ByteCountSI(int64(ioStat.Write)))
+                fmt.Fprintf(writer, "|%13s|%13s|%13s|\n", 
+                                    ioStat.Name, 
+                                    utils.ByteCountSI(int64(ioStat.Read)), 
+                                    utils.ByteCountSI(int64(ioStat.Write)))
+                if outCSVPath != "" {
+                    csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s",
+                                    ioStat.Name, 
+                                    utils.ByteCountSI(int64(ioStat.Read)), 
+                                    utils.ByteCountSI(int64(ioStat.Write))), ",")...)
+                 }
             }
         }
 
@@ -528,6 +718,10 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
             fmt.Fprintf(writer, "|%18s aio %18s|\n", "", "")
             fmt.Fprintf(writer, "|%41s|\n", "requests")
             fmt.Fprintf(writer, "|%41d|\n", int64((*sysStat).AIO.Requests))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d",
+                                int64((*sysStat).AIO.Requests)), ",")...)
+             }
         }
 
 
@@ -539,6 +733,12 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                         int64((*sysStat).Proc.Running),
                         int64((*sysStat).Proc.Blocked),
                         int64((*sysStat).Proc.Processes))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d",
+                        int64((*sysStat).Proc.Running),
+                        int64((*sysStat).Proc.Blocked),
+                        int64((*sysStat).Proc.Processes)), ",")...)
+             }
         }
 
         // ipc
@@ -549,6 +749,12 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                         int64((*sysStat).IPC.MessageQueue),
                         int64((*sysStat).IPC.Semaphore),
                         int64((*sysStat).IPC.SharedMemory))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d",
+                        int64((*sysStat).IPC.MessageQueue),
+                        int64((*sysStat).IPC.Semaphore),
+                        int64((*sysStat).IPC.SharedMemory)), ",")...)
+             }
         }
 
         // zones
@@ -560,6 +766,13 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                         utils.ByteCountSI(int64((*sysStat).Zone.DMA32High)),
                         utils.ByteCountSI(int64((*sysStat).Zone.NormalFree)),
                         utils.ByteCountSI(int64((*sysStat).Zone.NormalHigh)))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s,%s",
+                        utils.ByteCountSI(int64((*sysStat).Zone.DMA32Free)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.DMA32High)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.NormalFree)),
+                        utils.ByteCountSI(int64((*sysStat).Zone.NormalHigh))), ",")...)
+             }
         }
 
         // lock
@@ -571,6 +784,13 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                         utils.ByteCountSI(int64((*sysStat).Lock.Flock)),
                         utils.ByteCountSI(int64((*sysStat).Lock.Read)),
                         utils.ByteCountSI(int64((*sysStat).Lock.Write)))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%s,%s,%s,%s",
+                        utils.ByteCountSI(int64((*sysStat).Lock.Posix)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Flock)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Read)),
+                        utils.ByteCountSI(int64((*sysStat).Lock.Write))), ",")...)
+             }
         }
 
         // vm
@@ -582,16 +802,34 @@ func (sysStat *SysStat) Run(t int, cpuSlice, diskSlice, netSlice, swapSlice []st
                         int64((*sysStat).VM.PgFault),
                         int64((*sysStat).VM.PgAlloc),
                         int64((*sysStat).VM.PgFree))
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d,%d,%d,%d",
+                        int64((*sysStat).VM.PgMajFault),
+                        int64((*sysStat).VM.PgFault),
+                        int64((*sysStat).VM.PgAlloc),
+                        int64((*sysStat).VM.PgFree)), ",")...)
+             }
         }
 
         if isEpoch {
             fmt.Fprintf(writer, "|Epoch: %34d|\n", (*sysStat).Epoch)
+            if outCSVPath != "" {
+                csvData  = append(csvData, strings.Split(fmt.Sprintf("%d", (*sysStat).Epoch), ",")...)
+             }
         }
         
         if isTime {
             fmt.Fprintf(writer, "|DateTime: %31s|\n", time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05"))
         }
+        if outCSVPath != "" {
+           csvData  = append(csvData, strings.Split(fmt.Sprintf("%s", time.Time((*sysStat).DateTime).Format("2006-01-02 15:04:05")), ",")...)
+        }
+        
         // fmt.Fprintf(writer, "time const = %v\n", tc) 
+        if outCSVPath != "" {
+            _ = csvWriter.Write(csvData)
+            csvWriter.Flush()
+        }
     }
     writer.Stop()
 }
