@@ -26,29 +26,30 @@ func NetTicker() ([]NetStat, error) {
         return nil, err
     }
     lines = lines[2:] // **
-    devNames, err := utils.NetDev()  
-    if err != nil {
-        return nil, err
-    }
     
-    netList := []NetStat{} 
-    for _, netDev := range devNames {
-        netStat := NetStat{netDev, 0.0, 0.0}
-        netList = append(netList, netStat)
-    }
-    
+    netList := []NetStat{}
     totalNetStat := NetStat{"total", 0.0, 0.0}
-    for index, netStat := range netList {
-        fields := strings.Fields(lines[index])
+    for _, line := range lines {
+        fields := strings.Fields(line)
         
+        if len(fields) < 17 {
+            continue
+        }
+        if (fields[2] == "0" && fields[10] == "0") {
+            continue
+        }
+        if strings.Contains(fields[0], "face") {
+            continue 
+        }
+
+        devName     := strings.Replace(fields[0], ":", "", 1)
         tempRecv, _ := strconv.ParseFloat(fields[1], 64)
         tempSend, _ := strconv.ParseFloat(fields[9], 64)
-
-        if utils.StringsContains(devNames, strings.Replace(fields[0], ":", "", 1)) != -1 {
-            netStat.getNetStat(tempRecv, tempSend)
-            netList[index] = netStat // 除了指针、map、slice、chan等引用类型外，所有传参都是传值，都是一个副本/拷贝 
-        }
-        if isMatch, _ := regexp.MatchString(`^(lo|bond\d+|face|.+\.\d+)$`, strings.Replace(fields[0], ":", "", 1)); !isMatch {
+        
+        netStat := NetStat{devName, tempRecv, tempSend}
+        netList = append(netList, netStat)
+        
+        if isMatch, _ := regexp.MatchString(`^(lo|bond\d+|face|.+\.\d+)$`, devName); !isMatch {
             totalNetStat.Recv = totalNetStat.Recv + tempRecv 
             totalNetStat.Send = totalNetStat.Send + tempSend
         }
